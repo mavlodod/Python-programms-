@@ -1,0 +1,102 @@
+
+<!DOCTYPE html>
+<html lang="ru">
+<head>
+    <meta charset="UTF-8">
+    <title>Учет сотрудников</title>
+    <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.2/dist/css/bootstrap.min.css" rel="stylesheet">
+    <style>
+        body {
+            padding: 30px;
+        }
+        .birthday-tomorrow {
+            background-color: #ffecb3;
+        }
+        .hidden {
+            display: none;
+        }
+    </style>
+</head>
+<body>
+    <div class="container">
+        <h1 class="mb-4">Сотрудники</h1>
+
+        <!-- Форма добавления сотрудника -->
+        <div class="card mb-4">
+            <div class="card-body">
+                <form method="POST">
+                    <input type="hidden" name="action" value="add_employee">
+                    <div class="row mb-3">
+                        <div class="col-md-6">
+                            <input type="text" class="form-control" name="name" placeholder="Имя и Фамилия" required>
+                        </div>
+                        <div class="col-md-3">
+                            <input type="date" class="form-control" name="dob" required>
+                        </div>
+                        <div class="col-md-3">
+                            <button type="submit" class="btn btn-success w-100">Добавить сотрудника</button>
+                        </div>
+                    </div>
+                </form>
+            </div>
+        </div>
+
+        <!-- Кнопки действий -->
+        <div class="mb-3">
+            <button id="toggleListBtn" class="btn btn-primary me-2">Показать список сотрудников</button>
+            <button id="toggleBirthdayBtn" class="btn btn-warning">Показать дни рождения завтра</button>
+        </div>
+
+        <!-- Список сотрудников -->
+        <div id="employeeList" class="card mb-4 hidden">
+            <div class="card-body">
+                <table class="table table-striped">
+                    <thead>
+                        <tr>
+                            <th>Имя</th>
+                            <th>Дата рождения</th>
+                        </tr>
+                    </thead>
+                    <tbody>
+                        {% for emp in employees %}
+                        <tr {% if emp.name in birthdays_tomorrow %}class="birthday-tomorrow"{% endif %}>
+                            <td>{{ emp.name }}</td>
+                            <td>{{ emp.dob }}</td>
+                        </tr>
+                        {% endfor %}
+                    </tbody>
+                </table>
+            </div>
+        </div>
+
+        <!-- Дни рождения завтра -->
+        <div id="birthdayList" class="card mb-4 hidden">
+            <div class="card-body">
+                <h5>Дни рождения завтра:</h5>
+                <ul class="list-group">
+                    {% for name in birthdays_tomorrow %}
+                    <li class="list-group-item">{{ name }}</li>
+                    {% else %}
+                    <li class="list-group-item">Никого нет</li>
+                    {% endfor %}
+                </ul>
+            </div>
+        </div>
+    </div>
+
+    <script>
+        const employeeList = document.getElementById('employeeList');
+        const birthdayList = document.getElementById('birthdayList');
+        const toggleListBtn = document.getElementById('toggleListBtn');
+        const toggleBirthdayBtn = document.getElementById('toggleBirthdayBtn');
+
+        toggleListBtn.addEventListener('click', () => {
+            employeeList.classList.toggle('hidden');
+        });
+
+        toggleBirthdayBtn.addEventListener('click', () => {
+            birthdayList.classList.toggle('hidden');
+        });
+    </script>
+</body>
+</html>

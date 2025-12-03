@@ -1,0 +1,4 @@
+Flask==2.3.3
+aiogram==3.3.0
+requests
+
