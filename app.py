@@ -1,5 +1,4 @@
 
-
 from flask import Flask, render_template, request, redirect, url_for
 import sqlite3
 from datetime import datetime, timedelta
@@ -44,9 +43,9 @@ def index():
             return redirect(url_for('index'))
 
     # Получение сотрудников
-    cursor.execute("SELECT name, dob FROM employees")
+    cursor.execute("SELECT id, name, dob FROM employees")
     rows = cursor.fetchall()
-    employees = [{"name": r[0], "dob": r[1]} for r in rows]
+    employees = [{"id": r[0], "name": r[1], "dob": r[2]} for r in rows]
 
     # Сортировка по месяцу и дню
     employees_sorted = sorted(
@@ -74,7 +73,20 @@ def index():
         birthdays_tomorrow=birthdays_tomorrow
     )
 
+# Удаление нескольких сотрудников
+@app.route("/delete_employees", methods=["POST"])
+def delete_employees():
+    ids_to_delete = request.form.getlist("delete_ids")  # получаем список выбранных id
+    if ids_to_delete:
+        conn = sqlite3.connect(DB_NAME)
+        cursor = conn.cursor()
+        cursor.execute(
+            f"DELETE FROM employees WHERE id IN ({','.join(['?']*len(ids_to_delete))})",
+            ids_to_delete
+        )
+        conn.commit()
+        conn.close()
+    return redirect(url_for('index'))
 
 if __name__ == "__main__":
     app.run(host="0.0.0.0", port=5000, debug=True)
-

@@ -1,4 +1,3 @@
-
 <!DOCTYPE html>
 <html lang="ru">
 <head>
@@ -18,41 +17,43 @@
     </style>
 </head>
 <body>
-    <div class="container">
-        <h1 class="mb-4">Сотрудники</h1>
+<div class="container">
+    <h1 class="mb-4">Сотрудники</h1>
 
-        <!-- Форма добавления сотрудника -->
-        <div class="card mb-4">
-            <div class="card-body">
-                <form method="POST">
-                    <input type="hidden" name="action" value="add_employee">
-                    <div class="row mb-3">
-                        <div class="col-md-6">
-                            <input type="text" class="form-control" name="name" placeholder="Имя и Фамилия" required>
-                        </div>
-                        <div class="col-md-3">
-                            <input type="date" class="form-control" name="dob" required>
-                        </div>
-                        <div class="col-md-3">
-                            <button type="submit" class="btn btn-success w-100">Добавить сотрудника</button>
-                        </div>
+    <!-- Форма добавления сотрудника -->
+    <div class="card mb-4">
+        <div class="card-body">
+            <form method="POST">
+                <input type="hidden" name="action" value="add_employee">
+                <div class="row mb-3">
+                    <div class="col-md-6">
+                        <input type="text" class="form-control" name="name" placeholder="Имя и Фамилия" required>
                     </div>
-                </form>
-            </div>
+                    <div class="col-md-3">
+                        <input type="date" class="form-control" name="dob" required>
+                    </div>
+                    <div class="col-md-3">
+                        <button type="submit" class="btn btn-success w-100">Добавить сотрудника</button>
+                    </div>
+                </div>
+            </form>
         </div>
+    </div>
 
-        <!-- Кнопки действий -->
-        <div class="mb-3">
-            <button id="toggleListBtn" class="btn btn-primary me-2">Показать список сотрудников</button>
-            <button id="toggleBirthdayBtn" class="btn btn-warning">Показать дни рождения завтра</button>
-        </div>
+    <!-- Кнопки действий -->
+    <div class="mb-3">
+        <button id="toggleListBtn" class="btn btn-primary me-2">Показать список сотрудников</button>
+        <button id="toggleBirthdayBtn" class="btn btn-warning">Показать дни рождения завтра</button>
+    </div>
 
-        <!-- Список сотрудников -->
-        <div id="employeeList" class="card mb-4 hidden">
-            <div class="card-body">
+    <!-- Список сотрудников с выбором для удаления -->
+    <div id="employeeList" class="card mb-4 hidden">
+        <div class="card-body">
+            <form id="deleteForm" action="{{ url_for('delete_employees') }}" method="POST">
                 <table class="table table-striped">
                     <thead>
                         <tr>
+                            <th>Выбрать</th>
                             <th>Имя</th>
                             <th>Дата рождения</th>
                         </tr>
@@ -60,43 +61,46 @@
                     <tbody>
                         {% for emp in employees %}
                         <tr {% if emp.name in birthdays_tomorrow %}class="birthday-tomorrow"{% endif %}>
+                            <td><input type="checkbox" name="delete_ids" value="{{ emp.id }}"></td>
                             <td>{{ emp.name }}</td>
                             <td>{{ emp.dob }}</td>
                         </tr>
                         {% endfor %}
                     </tbody>
                 </table>
-            </div>
-        </div>
-
-        <!-- Дни рождения завтра -->
-        <div id="birthdayList" class="card mb-4 hidden">
-            <div class="card-body">
-                <h5>Дни рождения завтра:</h5>
-                <ul class="list-group">
-                    {% for name in birthdays_tomorrow %}
-                    <li class="list-group-item">{{ name }}</li>
-                    {% else %}
-                    <li class="list-group-item">Никого нет</li>
-                    {% endfor %}
-                </ul>
-            </div>
+                <button type="submit" class="btn btn-danger">Удалить выбранное</button>
+            </form>
         </div>
     </div>
 
-    <script>
-        const employeeList = document.getElementById('employeeList');
-        const birthdayList = document.getElementById('birthdayList');
-        const toggleListBtn = document.getElementById('toggleListBtn');
-        const toggleBirthdayBtn = document.getElementById('toggleBirthdayBtn');
+    <!-- Дни рождения завтра -->
+    <div id="birthdayList" class="card mb-4 hidden">
+        <div class="card-body">
+            <h5>Дни рождения завтра:</h5>
+            <ul class="list-group">
+                {% for name in birthdays_tomorrow %}
+                <li class="list-group-item">{{ name }}</li>
+                {% else %}
+                <li class="list-group-item">Никого нет</li>
+                {% endfor %}
+            </ul>
+        </div>
+    </div>
+</div>
 
-        toggleListBtn.addEventListener('click', () => {
-            employeeList.classList.toggle('hidden');
-        });
+<script>
+    const employeeList = document.getElementById('employeeList');
+    const birthdayList = document.getElementById('birthdayList');
+    const toggleListBtn = document.getElementById('toggleListBtn');
+    const toggleBirthdayBtn = document.getElementById('toggleBirthdayBtn');
 
-        toggleBirthdayBtn.addEventListener('click', () => {
-            birthdayList.classList.toggle('hidden');
-        });
-    </script>
+    toggleListBtn.addEventListener('click', () => {
+        employeeList.classList.toggle('hidden');
+    });
+
+    toggleBirthdayBtn.addEventListener('click', () => {
+        birthdayList.classList.toggle('hidden');
+    });
+</script>
 </body>
 </html>
