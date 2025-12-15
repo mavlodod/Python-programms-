@@ -62,7 +62,7 @@ def index():
 
     # Отправка уведомления, если есть у кого завтра ДР
     if birthdays_tomorrow:
-        message = "🎉 Завтра день рождения:\n" + "\n".join(birthdays_tomorrow)
+        message = "🎉 Завтра день рождения Пиццаааааааааа Будет Уррррррааааааааааа:\n" + "\n".join(birthdays_tomorrow)
         send_telegram_notification(message)
 
     conn.close()
