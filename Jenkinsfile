@@ -19,7 +19,7 @@ pipeline {
                   docker run -d -p 5000:5000 --name test_app ${IMAGE_NAME}:${IMAGE_TAG}
                   sleep 5
                   docker ps | grep test_app
-                  docker stop mavlodod_app
+                  docker stop test_app
                 '''
             }
         }
