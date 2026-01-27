@@ -152,14 +152,7 @@
             font-weight: 500;
         }
 
-        .hidden {
-            display: none;
-        }
-
-        .fade-in {
-            animation: fadeIn 0.5s ease-in;
-        }
-
+        .fade-in { animation: fadeIn 0.5s ease-in; }
         @keyframes fadeIn {
             from { opacity: 0; transform: translateY(10px); }
             to { opacity: 1; transform: translateY(0); }
@@ -181,10 +174,7 @@
             display: none;
         }
 
-        .birthday-message.show {
-            display: block;
-            animation: fadeIn 0.5s;
-        }
+        .birthday-message.show { display: block; animation: fadeIn 0.5s; }
 
         .age-badge {
             background-color: #e1f5fe;
@@ -194,21 +184,21 @@
             font-size: 0.85rem;
             font-weight: 500;
         }
-        
-        /* Улучшенные стили для таблицы */
+
         .table-hover tbody tr:hover {
             background-color: rgba(102, 126, 234, 0.05);
             cursor: pointer;
         }
-        
-        /* Стиль для выбранных строк */
+
         .table-selected {
             background-color: rgba(102, 126, 234, 0.1) !important;
         }
     </style>
 </head>
+
 <body>
 <div class="container-fluid py-4">
+
     <!-- Шапка -->
     <div class="dashboard-header">
         <div class="row align-items-center">
@@ -218,16 +208,20 @@
                 </h1>
                 <p class="lead mb-0">Добро пожаловать, <strong class="text-warning">{{ username }}</strong>!</p>
             </div>
+
             <div class="col-md-6 text-end">
                 <div class="btn-group" role="group">
                     <button type="button" class="btn btn-light" onclick="sendTestNotification()">
-                        <i class="bi bi-bell"></i> Тест уведомления
+                        <i class="bi bi-bell"></i> Тест Telegram
                     </button>
                     <a href="{{ url_for('check_birthdays_manual') }}" class="btn btn-outline-light">
                         <i class="bi bi-calendar-check"></i> Проверить ДР
                     </a>
-                    {% if username == 'admin' %}
-                    <a href="{{ url_for('manage_users') }}" class="btn btn-outline-light ms-2">
+                    {% if is_admin %}
+                    <a href="{{ url_for('departments') }}" class="btn btn-outline-light ms-2">
+                        <i class="bi bi-diagram-3"></i> Отделы
+                    </a>
+                    <a href="{{ url_for('users') }}" class="btn btn-outline-light ms-2">
                         <i class="bi bi-people"></i> Пользователи
                     </a>
                     {% endif %}
@@ -282,9 +276,10 @@
     </div>
 
     <div class="row">
-        <!-- Левая колонка: Формы -->
+        <!-- Левая колонка -->
         <div class="col-lg-4">
-            <!-- Форма добавления/редактирования -->
+
+            <!-- Форма добавления -->
             <div class="card card-custom">
                 <div class="card-header bg-primary text-white">
                     <h5 class="mb-0" id="formTitle">
@@ -295,22 +290,34 @@
                     <form method="POST" id="employeeForm">
                         <input type="hidden" name="action" value="add_employee">
                         <input type="hidden" id="employeeId" name="employee_id" value="">
-                        
+
                         <div class="mb-3">
                             <label for="employeeName" class="form-label">
                                 <i class="bi bi-person-badge"></i> Имя и Фамилия
                             </label>
-                            <input type="text" class="form-control" id="employeeName" name="name" 
+                            <input type="text" class="form-control" id="employeeName" name="name"
                                    placeholder="Введите полное имя сотрудника" required>
                         </div>
-                        
+
                         <div class="mb-3">
                             <label for="employeeDob" class="form-label">
                                 <i class="bi bi-calendar-date"></i> Дата рождения
                             </label>
                             <input type="date" class="form-control" id="employeeDob" name="dob" required>
                         </div>
-                        
+
+                        <div class="mb-3">
+                            <label for="employeeDept" class="form-label">
+                                <i class="bi bi-diagram-3"></i> Отдел
+                            </label>
+                            <select class="form-select" id="employeeDept" name="department_id">
+                                <option value="">— без отдела —</option>
+                                {% for d in departments %}
+                                    <option value="{{ d[0] }}">{{ d[1] }}</option>
+                                {% endfor %}
+                            </select>
+                        </div>
+
                         <div class="d-grid gap-2 d-md-flex justify-content-md-end">
                             <button type="submit" class="btn btn-success" id="submitBtn">
                                 <i class="bi bi-check-circle"></i> Добавить
@@ -326,7 +333,7 @@
                 </div>
             </div>
 
-            <!-- Панель управления уведомлениями -->
+            <!-- Панель уведомлений -->
             <div class="notification-controls">
                 <h6><i class="bi bi-bell"></i> Управление уведомлениями</h6>
                 <div class="btn-group w-100 mt-2" role="group">
@@ -339,7 +346,7 @@
                 </div>
             </div>
 
-            <!-- Ближайшие дни рождения -->
+            <!-- Ближайшие -->
             {% if birthdays_today or birthdays_tomorrow %}
             <div class="card card-custom">
                 <div class="card-header bg-warning text-dark">
@@ -359,7 +366,7 @@
                         </ul>
                     </div>
                     {% endif %}
-                    
+
                     {% if birthdays_tomorrow %}
                     <div class="alert alert-info">
                         <h6><i class="bi bi-alarm"></i> Завтра:</h6>
@@ -378,24 +385,24 @@
             {% endif %}
         </div>
 
-        <!-- Правая колонка: Список сотрудников -->
+        <!-- Правая колонка -->
         <div class="col-lg-8">
-            <!-- Поиск и управление -->
+
             <div class="card card-custom mb-3">
                 <div class="card-body">
                     <div class="row align-items-center">
                         <div class="col-md-6">
-                            <div class="input-group">
+                            <div class="input-group position-relative">
                                 <span class="input-group-text search-icon">
                                     <i class="bi bi-search"></i>
                                 </span>
-                                <input type="text" id="searchInput" class="form-control search-box" 
+                                <input type="text" id="searchInput" class="form-control search-box"
                                        placeholder="Поиск по имени...">
                             </div>
                         </div>
                         <div class="col-md-6 text-end">
                             <button class="btn btn-primary me-2" onclick="toggleEmployeeList()">
-                                <i class="bi bi-list"></i> 
+                                <i class="bi bi-list"></i>
                                 <span id="toggleText">Скрыть список</span>
                             </button>
                             <button class="btn btn-danger" onclick="deleteSelected()">
@@ -406,45 +413,60 @@
                 </div>
             </div>
 
-            <!-- Список сотрудников -->
+            <!-- Список сотрудников (Шапка = кнопки отделов) -->
             <div class="card card-custom" id="employeeListCard">
                 <div class="card-header bg-secondary text-white">
-                    <h5 class="mb-0">
-                        <i class="bi bi-people"></i> Список сотрудников
-                        <span class="badge bg-light text-dark ms-2">{{ employees|length }}</span>
-                    </h5>
+                    <div class="d-flex flex-wrap align-items-center gap-2">
+                        <div class="me-2 text-white fw-semibold">
+                            <i class="bi bi-diagram-3"></i> Отделы:
+                        </div>
+
+                        <button type="button" class="btn btn-sm btn-light" onclick="filterByDepartment('ALL')">
+                            Все
+                            <span class="badge bg-dark ms-1" id="countAll">{{ employees|length }}</span>
+                        </button>
+
+                        <div id="deptButtons" class="d-flex flex-wrap gap-2"></div>
+
+                        <div class="ms-auto text-white">
+                            <span class="badge bg-light text-dark" id="currentFilterLabel">Все сотрудники</span>
+                        </div>
+                    </div>
                 </div>
+
                 <div class="card-body p-0">
                     <div class="table-responsive">
                         <table class="table table-hover mb-0">
                             <thead class="table-light">
-                                <tr>
-                                    <th width="50" class="text-center">
-                                        <input type="checkbox" id="selectAll" class="form-check-input">
-                                    </th>
-                                    <th width="60">#</th>
-                                    <th>Сотрудник</th>
-                                    <th>Дата рождения</th>
-                                    <th>Возраст</th>
-                                    <th class="text-center">Действия</th>
-                                </tr>
+                            <tr>
+                                <th width="50" class="text-center">
+                                    <input type="checkbox" id="selectAll" class="form-check-input">
+                                </th>
+                                <th width="60">#</th>
+                                <th>Сотрудник</th>
+                                <th>Дата рождения</th>
+                                <th>Возраст</th>
+                                <th>Отдел</th>
+                                <th class="text-center">Действия</th>
+                            </tr>
                             </thead>
+
                             <tbody id="employeeTableBody">
-                                {% for emp in employees %}
+                            {% for emp in employees %}
                                 {% set birth_date = emp.dob.split('-') %}
                                 {% set birth_year = birth_date[0]|int %}
                                 {% set birth_month = birth_date[1]|int %}
                                 {% set birth_day = birth_date[2]|int %}
-                                
+
                                 {% set age = now.year - birth_year %}
                                 {% if now.month < birth_month or (now.month == birth_month and now.day < birth_day) %}
                                     {% set age = age - 1 %}
                                 {% endif %}
-                                
-                                <tr data-id="{{ emp.id }}" 
+
+                                <tr data-id="{{ emp.id }}"
                                     class="employee-row {% if emp.name in birthdays_today %}birthday-today{% elif emp.name in birthdays_tomorrow %}birthday-tomorrow{% endif %}">
                                     <td class="text-center">
-                                        <input type="checkbox" class="form-check-input employee-checkbox" 
+                                        <input type="checkbox" class="form-check-input employee-checkbox"
                                                value="{{ emp.id }}">
                                     </td>
                                     <td>{{ loop.index }}</td>
@@ -464,36 +486,37 @@
                                         </div>
                                     </td>
                                     <td>
-                                        {{ birth_day }}.{{ birth_month }}.{{ birth_year }}
+                                        {{ "%02d"|format(birth_day) }}.{{ "%02d"|format(birth_month) }}.{{ birth_year }}
                                         <br>
                                         <small class="text-muted">{{ emp.dob }}</small>
                                     </td>
                                     <td>
                                         <span class="age-badge">{{ age }} {{ get_age_suffix(age) }}</span>
                                     </td>
+                                    <td>
+                                        <span class="badge bg-light text-dark">
+                                            {{ emp.department if emp.department else "—" }}
+                                        </span>
+                                    </td>
                                     <td class="text-center action-buttons">
-                                        <button class="btn btn-sm btn-edit" onclick="editEmployee({{ emp.id }})" 
-                                                title="Редактировать">
+                                        <button class="btn btn-sm btn-edit" onclick="editEmployee({{ emp.id }})" title="Редактировать">
                                             <i class="bi bi-pencil"></i>
                                         </button>
-                                        <button class="btn btn-sm btn-delete" onclick="deleteEmployee({{ emp.id }})" 
-                                                title="Удалить">
+                                        <button class="btn btn-sm btn-delete" onclick="deleteEmployee({{ emp.id }})" title="Удалить">
                                             <i class="bi bi-trash"></i>
                                         </button>
-                                        <button class="btn btn-sm btn-info" onclick="viewEmployee({{ emp.id }}, '{{ emp.name }}', '{{ emp.dob }}')" 
-                                                title="Просмотр">
+                                        <button class="btn btn-sm btn-info" onclick="viewEmployee({{ emp.id }}, '{{ emp.name }}', '{{ emp.dob }}', '{{ emp.department|default("") }}')" title="Просмотр">
                                             <i class="bi bi-eye"></i>
                                         </button>
                                     </td>
                                 </tr>
-                                {% endfor %}
+                            {% endfor %}
                             </tbody>
                         </table>
                     </div>
                 </div>
             </div>
 
-            <!-- Информация о сегодняшних именинниках -->
             {% if birthdays_today %}
             <div class="birthday-message show">
                 <div class="alert alert-success border-0">
@@ -504,11 +527,6 @@
                         <li><strong>{{ name }}</strong> - сегодня празднует свой день рождения!</li>
                         {% endfor %}
                     </ul>
-                    <div class="text-end">
-                        <button class="btn btn-sm btn-success" onclick="sendBirthdayGreeting()">
-                            <i class="bi bi-send"></i> Отправить поздравление
-                        </button>
-                    </div>
                 </div>
             </div>
             {% endif %}
@@ -516,7 +534,7 @@
     </div>
 </div>
 
-<!-- Модальное окно для просмотра сотрудника -->
+<!-- Модалка -->
 <div class="modal fade" id="viewEmployeeModal" tabindex="-1">
     <div class="modal-dialog">
         <div class="modal-content">
@@ -524,9 +542,7 @@
                 <h5 class="modal-title">Информация о сотруднике</h5>
                 <button type="button" class="btn-close btn-close-white" data-bs-dismiss="modal"></button>
             </div>
-            <div class="modal-body" id="employeeDetails">
-                <!-- Данные будут загружены через JavaScript -->
-            </div>
+            <div class="modal-body" id="employeeDetails"></div>
             <div class="modal-footer">
                 <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Закрыть</button>
                 <button type="button" class="btn btn-primary" id="editFromModal">Редактировать</button>
@@ -535,33 +551,23 @@
     </div>
 </div>
 
-<!-- Bootstrap JS -->
+<!-- JS -->
 <script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.2/dist/js/bootstrap.bundle.min.js"></script>
-<!-- Axios для AJAX -->
 <script src="https://cdn.jsdelivr.net/npm/axios/dist/axios.min.js"></script>
 
 <script>
-// Текущий режим редактирования
 let editingEmployeeId = null;
 
-// Функция для правильного окончания возраста (JavaScript версия)
 function getAgeSuffix(age) {
-    if (11 <= age % 100 && age % 100 <= 19) {
-        return "лет";
-    } else if (age % 10 === 1) {
-        return "год";
-    } else if (2 <= age % 10 && age % 10 <= 4) {
-        return "года";
-    } else {
-        return "лет";
-    }
+    if (11 <= age % 100 && age % 100 <= 19) return "лет";
+    if (age % 10 === 1) return "год";
+    if (2 <= age % 10 && age % 10 <= 4) return "года";
+    return "лет";
 }
 
-// Переключение видимости списка
 function toggleEmployeeList() {
     const card = document.getElementById('employeeListCard');
     const toggleText = document.getElementById('toggleText');
-    
     if (card.style.display === 'none') {
         card.style.display = 'block';
         toggleText.textContent = 'Скрыть список';
@@ -571,198 +577,137 @@ function toggleEmployeeList() {
     }
 }
 
-// Поиск сотрудников
 document.getElementById('searchInput').addEventListener('input', function(e) {
     const searchTerm = e.target.value.toLowerCase();
-    const rows = document.querySelectorAll('#employeeTableBody tr');
-    
-    rows.forEach(row => {
+    document.querySelectorAll('#employeeTableBody tr').forEach(row => {
         const name = row.querySelector('td:nth-child(3) strong').textContent.toLowerCase();
-        if (name.includes(searchTerm)) {
-            row.style.display = '';
-        } else {
-            row.style.display = 'none';
-        }
+        row.style.display = name.includes(searchTerm) ? '' : 'none';
     });
 });
 
-// Выделить все чекбоксы
 document.getElementById('selectAll').addEventListener('change', function(e) {
-    const checkboxes = document.querySelectorAll('.employee-checkbox');
-    checkboxes.forEach(checkbox => {
-        checkbox.checked = e.target.checked;
-        // Добавляем/убираем класс для выделения строки
-        const row = checkbox.closest('tr');
-        if (checkbox.checked) {
-            row.classList.add('table-selected');
-        } else {
-            row.classList.remove('table-selected');
-        }
+    document.querySelectorAll('.employee-checkbox').forEach(cb => {
+        cb.checked = e.target.checked;
+        const row = cb.closest('tr');
+        cb.checked ? row.classList.add('table-selected') : row.classList.remove('table-selected');
     });
 });
 
-// Обработка клика по чекбоксам сотрудников
-document.querySelectorAll('.employee-checkbox').forEach(checkbox => {
-    checkbox.addEventListener('change', function() {
+document.querySelectorAll('.employee-checkbox').forEach(cb => {
+    cb.addEventListener('change', function() {
         const row = this.closest('tr');
-        if (this.checked) {
-            row.classList.add('table-selected');
-        } else {
-            row.classList.remove('table-selected');
-        }
+        this.checked ? row.classList.add('table-selected') : row.classList.remove('table-selected');
     });
 });
 
-// Редактирование сотрудника
+/* === Редактирование === */
 function editEmployee(id) {
     editingEmployeeId = id;
-    
-    // Загружаем данные сотрудника через AJAX
     axios.get(`/get_employee/${id}`)
-        .then(response => {
-            const employee = response.data;
-            
-            document.getElementById('employeeId').value = employee.id;
-            document.getElementById('employeeName').value = employee.name;
-            document.getElementById('employeeDob').value = employee.dob;
-            
-            // Меняем заголовок формы
-            document.getElementById('formTitle').innerHTML = 
-                '<i class="bi bi-person-check"></i> Редактировать сотрудника';
-            
-            // Показываем нужные кнопки
+        .then(res => {
+            const emp = res.data;
+            document.getElementById('employeeId').value = emp.id;
+            document.getElementById('employeeName').value = emp.name;
+            document.getElementById('employeeDob').value = emp.dob;
+
+            const deptSelect = document.getElementById('employeeDept');
+            if (deptSelect) deptSelect.value = emp.department_id ? String(emp.department_id) : "";
+
+            document.getElementById('formTitle').innerHTML = '<i class="bi bi-person-check"></i> Редактировать сотрудника';
             document.getElementById('submitBtn').style.display = 'none';
             document.getElementById('updateBtn').style.display = 'inline-block';
             document.getElementById('cancelBtn').style.display = 'inline-block';
-            
-            // Прокручиваем к форме
-            document.getElementById('employeeForm').scrollIntoView({ 
-                behavior: 'smooth' 
-            });
+            document.getElementById('employeeForm').scrollIntoView({behavior:'smooth'});
         })
-        .catch(error => {
-            alert('Ошибка при загрузке данных сотрудника');
-            console.error(error);
-        });
+        .catch(() => alert('Ошибка при загрузке данных сотрудника'));
 }
 
-// Обновление сотрудника (кнопка "Сохранить изменения")
 document.getElementById('updateBtn').addEventListener('click', function() {
     const form = document.getElementById('employeeForm');
-    const formData = new FormData(form);
-    
-    formData.set('action', 'update_employee');
-    
-    fetch('/update_employee', {
-        method: 'POST',
-        body: formData
-    })
-    .then(response => {
-        if (response.ok) {
-            window.location.reload();
-        } else {
-            alert('Ошибка при обновлении сотрудника');
-        }
-    })
-    .catch(error => {
-        alert('Ошибка при обновлении сотрудника');
-        console.error(error);
-    });
+    const fd = new FormData(form);
+    fd.set('action', 'update_employee');
+    fetch('/update_employee', { method:'POST', body: fd })
+        .then(r => r.ok ? window.location.reload() : alert('Ошибка при обновлении'))
+        .catch(() => alert('Ошибка сети'));
 });
 
-// Отмена редактирования
-document.getElementById('cancelBtn').addEventListener('click', function() {
-    resetForm();
-});
+document.getElementById('cancelBtn').addEventListener('click', resetForm);
 
-// Сброс формы
 function resetForm() {
     editingEmployeeId = null;
     document.getElementById('employeeId').value = '';
     document.getElementById('employeeName').value = '';
     document.getElementById('employeeDob').value = '';
-    
-    document.getElementById('formTitle').innerHTML = 
-        '<i class="bi bi-person-plus"></i> Добавить нового сотрудника';
-    
+    document.getElementById('employeeDept').value = '';
+
+    document.getElementById('formTitle').innerHTML = '<i class="bi bi-person-plus"></i> Добавить нового сотрудника';
     document.getElementById('submitBtn').style.display = 'inline-block';
     document.getElementById('updateBtn').style.display = 'none';
     document.getElementById('cancelBtn').style.display = 'none';
 }
 
-// Удаление одного сотрудника
+/* === Удаление === */
 function deleteEmployee(id) {
-    if (confirm('Вы уверены, что хотите удалить этого сотрудника?')) {
-        const formData = new FormData();
-        formData.append('delete_ids[]', id);
-        
-        fetch('/delete_employees', {
-            method: 'POST',
-            body: formData
-        })
-        .then(response => {
-            if (response.ok) {
-                window.location.reload();
-            } else {
-                alert('Ошибка при удалении сотрудника');
-            }
-        });
-    }
+    if (!confirm('Удалить сотрудника?')) return;
+    const fd = new FormData();
+    fd.append('delete_ids', id);
+    fetch('/delete_employees', { method:'POST', body: fd })
+        .then(r => r.ok ? window.location.reload() : alert('Ошибка при удалении'));
 }
 
-// Удаление выбранных сотрудников
 function deleteSelected() {
-    const checkboxes = document.querySelectorAll('.employee-checkbox:checked');
-    if (checkboxes.length === 0) {
-        alert('Выберите сотрудников для удаления');
-        return;
-    }
-    
-    if (!confirm(`Удалить выбранных сотрудников (${checkboxes.length})?`)) {
-        return;
-    }
-    
-    const formData = new FormData();
-    checkboxes.forEach(checkbox => {
-        formData.append('delete_ids', checkbox.value);
-    });
-    
-    fetch('/delete_employees', {
-        method: 'POST',
-        body: formData
-    })
-    .then(response => {
-        if (response.ok) {
-            window.location.reload();
-        } else {
-            alert('Ошибка при удалении сотрудников');
-        }
-    });
+    const selected = document.querySelectorAll('.employee-checkbox:checked');
+    if (selected.length === 0) return alert('Выберите сотрудников');
+    if (!confirm(`Удалить выбранных (${selected.length})?`)) return;
+
+    const fd = new FormData();
+    selected.forEach(cb => fd.append('delete_ids', cb.value));
+    fetch('/delete_employees', { method:'POST', body: fd })
+        .then(r => r.ok ? window.location.reload() : alert('Ошибка при удалении'));
 }
 
-// Просмотр информации о сотруднике (исправленная версия)
-function viewEmployee(id, name, dob) {
+/* === Просмотр === */
+function calculateDaysToNextBirthday(birthDate) {
+    const today = new Date();
+    const next = new Date(today.getFullYear(), birthDate.getMonth(), birthDate.getDate());
+    if (next < today) next.setFullYear(today.getFullYear() + 1);
+    const diff = next - today;
+    return Math.ceil(diff / (1000 * 60 * 60 * 24));
+}
+
+function getDaySuffix(days) {
+    if (days % 10 === 1 && days % 100 !== 11) return "день";
+    if (days % 10 >= 2 && days % 10 <= 4 && (days % 100 < 10 || days % 100 >= 20)) return "дня";
+    return "дней";
+}
+
+function getNextBirthdayDate(birthDate) {
+    const today = new Date();
+    const next = new Date(today.getFullYear(), birthDate.getMonth(), birthDate.getDate());
+    if (next < today) next.setFullYear(today.getFullYear() + 1);
+    return next.toLocaleDateString('ru-RU');
+}
+
+function viewEmployee(id, name, dob, dept) {
     const birthDate = new Date(dob);
     const today = new Date();
-    const age = today.getFullYear() - birthDate.getFullYear();
-    
-    // Проверяем, был ли уже день рождения в этом году
-    const thisYearBirthday = new Date(today.getFullYear(), birthDate.getMonth(), birthDate.getDate());
-    if (thisYearBirthday > today) {
-        age--;
-    }
-    
-    const daysToNextBirthday = calculateDaysToNextBirthday(birthDate);
+    let age = today.getFullYear() - birthDate.getFullYear();
+    const thisYear = new Date(today.getFullYear(), birthDate.getMonth(), birthDate.getDate());
+    if (thisYear > today) age--;
+
+    const daysToNext = calculateDaysToNextBirthday(birthDate);
     const formattedDate = birthDate.toLocaleDateString('ru-RU');
-    
-    let html = `
+    const initials = name.split(' ').length > 1 ? name.split(' ')[0][0] + name.split(' ')[1][0] : name[0];
+
+    const html = `
         <div class="text-center mb-4">
             <div class="employee-avatar mx-auto mb-3" style="width: 80px; height: 80px; font-size: 24px;">
-                ${name.split(' ')[0][0]}${name.split(' ').length > 1 ? name.split(' ')[1][0] : name[0]}
+                ${initials}
             </div>
             <h4>${name}</h4>
+            <div class="text-muted">${dept ? dept : "— без отдела —"}</div>
         </div>
-        
+
         <div class="row">
             <div class="col-md-6">
                 <div class="mb-3">
@@ -777,137 +722,139 @@ function viewEmployee(id, name, dob) {
                 </div>
             </div>
         </div>
-        
+
+        <div class="mb-3">
+            <label class="form-label text-muted">Отдел</label>
+            <div class="form-control bg-light">${dept ? dept : "—"}</div>
+        </div>
+
         <div class="mb-3">
             <label class="form-label text-muted">Дней до следующего дня рождения</label>
             <div class="form-control bg-light">
-                ${daysToNextBirthday} ${getDaySuffix(daysToNextBirthday)}
+                ${daysToNext} ${getDaySuffix(daysToNext)}
             </div>
         </div>
-        
+
         <div class="alert alert-info mt-3">
             <i class="bi bi-info-circle"></i>
-            <small>
-                Следующий день рождения: ${getNextBirthdayDate(birthDate)}
-            </small>
+            <small>Следующий день рождения: ${getNextBirthdayDate(birthDate)}</small>
         </div>
     `;
-    
+
     document.getElementById('employeeDetails').innerHTML = html;
-    
-    // Настраиваем кнопку "Редактировать" в модальном окне
-    document.getElementById('editFromModal').onclick = function() {
+
+    document.getElementById('editFromModal').onclick = function () {
         editEmployee(id);
         bootstrap.Modal.getInstance(document.getElementById('viewEmployeeModal')).hide();
     };
-    
-    // Показываем модальное окно
-    const modal = new bootstrap.Modal(document.getElementById('viewEmployeeModal'));
-    modal.show();
+
+    new bootstrap.Modal(document.getElementById('viewEmployeeModal')).show();
 }
 
-// Функция для правильного окончания дней
-function getDaySuffix(days) {
-    if (days % 10 === 1 && days % 100 !== 11) {
-        return "день";
-    } else if (days % 10 >= 2 && days % 10 <= 4 && (days % 100 < 10 || days % 100 >= 20)) {
-        return "дня";
-    } else {
-        return "дней";
-    }
-}
-
-// Получить дату следующего дня рождения
-function getNextBirthdayDate(birthDate) {
-    const today = new Date();
-    const nextBirthday = new Date(today.getFullYear(), birthDate.getMonth(), birthDate.getDate());
-    
-    if (nextBirthday < today) {
-        nextBirthday.setFullYear(today.getFullYear() + 1);
-    }
-    
-    return nextBirthday.toLocaleDateString('ru-RU');
-}
-
-// Расчет дней до следующего дня рождения
-function calculateDaysToNextBirthday(birthDate) {
-    const today = new Date();
-    const nextBirthday = new Date(today.getFullYear(), birthDate.getMonth(), birthDate.getDate());
-    
-    if (nextBirthday < today) {
-        nextBirthday.setFullYear(today.getFullYear() + 1);
-    }
-    
-    const diffTime = nextBirthday - today;
-    const diffDays = Math.ceil(diffTime / (1000 * 60 * 60 * 24));
-    return diffDays;
-}
-
-// Отправка тестового уведомления
+/* === Telegram test === */
 function sendTestNotification() {
     fetch('/send_test_notification')
-        .then(response => response.json())
-        .then(data => {
-            if (data.success) {
-                showAlert('Тестовое уведомление отправлено!', 'success');
-            } else {
-                showAlert('Ошибка: ' + data.error, 'danger');
-            }
+        .then(r => r.json())
+        .then(d => {
+            if (d.success) showAlert('Тестовое уведомление отправлено!', 'success');
+            else showAlert('Ошибка: ' + d.error, 'danger');
         })
-        .catch(error => {
-            showAlert('Ошибка сети', 'danger');
-        });
+        .catch(() => showAlert('Ошибка сети', 'danger'));
 }
 
-// Показать всплывающее сообщение
 function showAlert(message, type) {
     const alertDiv = document.createElement('div');
-    alertDiv.className = `alert alert-${type} alert-dismissible fade show fade-in`;
-    alertDiv.innerHTML = `
-        ${message}
-        <button type="button" class="btn-close" data-bs-dismiss="alert"></button>
-    `;
-    
+    alertDiv.className = `alert alert-${type} alert-dismissible fade show shadow-sm fade-in`;
+    alertDiv.innerHTML = `${message}<button type="button" class="btn-close" data-bs-dismiss="alert"></button>`;
     document.querySelector('.container-fluid').insertBefore(alertDiv, document.querySelector('.dashboard-header').nextSibling);
-    
-    setTimeout(() => {
-        if (alertDiv.parentNode) {
-            alertDiv.parentNode.removeChild(alertDiv);
-        }
-    }, 5000);
+    setTimeout(() => alertDiv.remove(), 5000);
 }
 
-// Отправка поздравления
-function sendBirthdayGreeting() {
-    const message = "🎂 Поздравляем всех именинников с днем рождения! 🎉";
-    if (confirm(`Отправить поздравление в Telegram?\n\n${message}`)) {
-        // Здесь можно добавить AJAX запрос для отправки специального поздравления
-        alert('Поздравление будет отправлено через Telegram бота!');
+/* === Кнопки отделов + фильтр === */
+function getRowDepartment(row) {
+    // Важно: отдел в 6-й колонке (см. таблицу: чекбокс, #, сотрудник, дата, возраст, отдел, действия)
+    const td = row.querySelector('td:nth-child(6)');
+    if (!td) return "";
+    const txt = td.innerText.trim();
+    return (txt === "—" || txt === "") ? "Без отдела" : txt;
+}
+
+function buildDepartmentButtons() {
+    const rows = Array.from(document.querySelectorAll('#employeeTableBody tr'));
+    const deptMap = new Map();
+
+    rows.forEach(r => {
+        const dept = getRowDepartment(r);
+        deptMap.set(dept, (deptMap.get(dept) || 0) + 1);
+    });
+
+    let depts = Array.from(deptMap.keys()).sort((a,b)=>a.localeCompare(b,'ru'));
+    const idx = depts.indexOf("Без отдела");
+    if (idx !== -1) { depts.splice(idx,1); depts.push("Без отдела"); }
+
+    const container = document.getElementById('deptButtons');
+    container.innerHTML = "";
+
+    depts.forEach(dept => {
+        const count = deptMap.get(dept);
+
+        const btn = document.createElement('button');
+        btn.type = "button";
+        btn.className = "btn btn-sm btn-outline-light";
+        btn.setAttribute('data-dept', dept);
+        btn.onclick = () => filterByDepartment(dept);
+
+        btn.innerHTML = `${dept} <span class="badge bg-light text-dark ms-1">${count}</span>`;
+        container.appendChild(btn);
+    });
+}
+
+function setActiveDeptButton(dept) {
+    document.querySelectorAll('#deptButtons button').forEach(b => {
+        b.classList.remove('btn-light');
+        b.classList.add('btn-outline-light');
+    });
+    if (dept === "ALL") return;
+    const active = document.querySelector(`#deptButtons button[data-dept="${CSS.escape(dept)}"]`);
+    if (active) {
+        active.classList.remove('btn-outline-light');
+        active.classList.add('btn-light');
     }
 }
 
-// Инициализация при загрузке страницы
+function filterByDepartment(dept) {
+    const rows = Array.from(document.querySelectorAll('#employeeTableBody tr'));
+    let visible = 0;
+
+    rows.forEach(r => {
+        const rowDept = getRowDepartment(r);
+        const show = (dept === "ALL") ? true : (rowDept === dept);
+        r.style.display = show ? "" : "none";
+        if (show) visible++;
+    });
+
+    const label = document.getElementById('currentFilterLabel');
+    if (label) label.textContent = (dept === "ALL") ? "Все сотрудники" : `Отдел: ${dept} (показано ${visible})`;
+
+    setActiveDeptButton(dept);
+}
+
 document.addEventListener('DOMContentLoaded', function() {
-    // Добавляем обработчики клика по строкам таблицы
+    buildDepartmentButtons();
+    filterByDepartment("ALL");
+
+    // Клик по строке таблицы (кроме чекбокса и кнопок)
     document.querySelectorAll('.employee-row').forEach(row => {
         row.addEventListener('click', function(e) {
-            // Если клик не на чекбоксе или кнопке действия
             if (!e.target.closest('input[type="checkbox"]') && !e.target.closest('.action-buttons')) {
                 const id = this.getAttribute('data-id');
                 const name = this.querySelector('td:nth-child(3) strong').textContent;
                 const dob = this.querySelector('td:nth-child(4) small').textContent;
-                viewEmployee(id, name, dob);
+                const dept = this.querySelector('td:nth-child(6)').innerText.trim();
+                viewEmployee(id, name, dob, dept === "—" ? "" : dept);
             }
         });
     });
-    
-    // Автоматически показываем сообщение о днях рождения
-    const birthdayMessage = document.querySelector('.birthday-message');
-    if (birthdayMessage && birthdayMessage.classList.contains('show')) {
-        setTimeout(() => {
-            birthdayMessage.scrollIntoView({ behavior: 'smooth' });
-        }, 1000);
-    }
 });
 </script>
 </body>

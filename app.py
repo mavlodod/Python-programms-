@@ -1,687 +1,506 @@
-from flask import Flask, render_template, request, redirect, url_for, session, flash, jsonify
+from flask import Flask, render_template, request, redirect, url_for, session, flash, jsonify, abort
 import sqlite3
 from datetime import datetime, timedelta
 from werkzeug.security import generate_password_hash, check_password_hash
-import os
 from functools import wraps
 import threading
 import time
-import atexit
+import os
 import json
 import random
-
-app = Flask(__name__)
-app.secret_key = os.urandom(24)
-DB_NAME = "employees.db"
-
-# ================ TELEGRAM ФУНКЦИЯ ПРЯМО ЗДЕСЬ ================
 import requests
 
+app = Flask(__name__)
+app.secret_key = "CHANGE_ME_TO_SOMETHING_RANDOM"  # чтобы сессии работали стабильно
+
+DB_NAME = "employees.db"
+NOTIFICATION_HISTORY_FILE = "notification_history.json"
+
+# ================= TELEGRAM (встроенный) =================
 TELEGRAM_TOKEN = "8357883858:AAEt_Csdcft7Obzv85J15F3WaYsXiZJ-FfQ"
 TELEGRAM_CHAT_ID = "-4537586641"
+HAS_TELEGRAM = True
 
-def send_telegram_notification(text):
-    """Отправка уведомления в Telegram."""
+def send_telegram_notification(text: str) -> bool:
     try:
         url = f"https://api.telegram.org/bot{TELEGRAM_TOKEN}/sendMessage"
-        data = {
-            "chat_id": TELEGRAM_CHAT_ID,
-            "text": text,
-            "parse_mode": "HTML"
-        }
-        response = requests.post(url, data=data, timeout=10)
-        response.raise_for_status()
-        print(f"✅ Telegram: Уведомление отправлено")
+        data = {"chat_id": TELEGRAM_CHAT_ID, "text": text, "parse_mode": "HTML"}
+        r = requests.post(url, data=data, timeout=10)
+        r.raise_for_status()
+        print("✅ Telegram: Уведомление отправлено")
         return True
     except Exception as e:
         print(f"❌ Telegram: Ошибка: {e}")
         return False
+# =========================================================
 
-HAS_TELEGRAM = True
-print("✅ Telegram функции загружены (встроенные)")
-# ================ КОНЕЦ TELEGRAM ФУНКЦИЙ ================
-
-# Файл для хранения истории отправки
-NOTIFICATION_HISTORY_FILE = "notification_history.json"
-
-# Коллекция поздравительных текстов
 BIRTHDAY_CONGRATS = [
-    "🎉 Уважаемый коллега! Поздравляем с Днём рождения! Желаем профессиональных успехов, крепкого здоровья и благополучия!",
-    "🎂 Дорогой сотрудник! От всей души поздравляем с Днём рождения! Пусть работа приносит радость, а жизнь будет полна счастливых моментов!",
-    "🥳 С Днём рождения! Желаем, чтобы каждый день был наполнен радостью, а каждый проект приносил удовлетворение и успех!",
-    "🎈 С Днём рождения! 🎈 Пусть сбываются мечты, окружают верные друзья, а в делах сопутствует удача! Будь счастлив(а)!",
-    "🎁 Поздравляю с Днём рождения! 🎁 Желаю море улыбок, гору подарков и океан позитива! Пусть всё получается легко и радостно!",
-    "✨ С Днём рождения! ✨ Пусть жизнь будет яркой, как фейерверк, сладкой, как торт, и счастливой, как этот день!",
-    "💖 Дорогой коллега, с Днём рождения! 💖 Пусть сердце наполняется радостью, душа поёт от счастья, а каждый день приносит что-то хорошее!",
-    "🔥 С Днём рождения! 🔥 Новый год жизни - новые возможности! Вперёд к достижениям и свершениям!",
-    "🏢 От всего коллектива поздравляем с Днём рождения! 🏢 Ценим тебя как профессионала и уважаем как человека! Успехов!",
-    "🌠 С Днём рождения! Желаем: здоровья - богатырского, счастья - бесконечного, удачи - оглушительной!"
+    "🎉 Поздравляем с Днём рождения! Желаем успехов, здоровья и отличного настроения!",
+    "🎂 С Днём рождения! Пусть всё получается легко и радостно!",
+    "🥳 С Днём рождения! Радости, удачи и крутых достижений!",
+    "🎈 С Днём рождения! Пусть будет больше счастья и меньше забот!",
 ]
 
 REMINDER_TEXTS = [
-    "🔔 НАПОМИНАНИЕ! Завтра день рождения у нашего коллеги. Приготовьте поздравления! 🎁",
-    "⏰ Внимание! Завтра празднуем день рождения! Не забудьте поздравить! 🎉",
-    "📅 Завтра особенный день! Готовим поздравления для именинника! 🥳",
-    "🎈 Завтра повод для радости! День рождения нашего коллеги! 🎂",
-    "🌟 Завтра звёздный час для нашего сотрудника! Готовим сюрпризы! ✨"
+    "🔔 НАПОМИНАНИЕ! Завтра день рождения у коллеги. Подготовьте поздравления! 🎁",
+    "⏰ Завтра у нас день рождения! Не забудьте поздравить! 🎉",
+    "📅 Завтра особенный день — готовим поздравления! 🥳",
+    "🎈 Завтра ДР у коллеги! 🎂",
 ]
 
 def get_random_congrat():
-    """Возвращает случайное поздравление."""
     return random.choice(BIRTHDAY_CONGRATS)
 
 def get_random_reminder():
-    """Возвращает случайное напоминание."""
     return random.choice(REMINDER_TEXTS)
 
-def get_age_suffix(age):
-    """Возвращает правильное окончание для возраста."""
+def get_age_suffix(age: int) -> str:
     if 11 <= age % 100 <= 19:
         return "лет"
-    elif age % 10 == 1:
+    if age % 10 == 1:
         return "год"
-    elif 2 <= age % 10 <= 4:
+    if 2 <= age % 10 <= 4:
         return "года"
-    else:
-        return "лет"
+    return "лет"
 
-# Загружаем историю уведомлений
 def load_notification_history():
     if os.path.exists(NOTIFICATION_HISTORY_FILE):
         try:
-            with open(NOTIFICATION_HISTORY_FILE, 'r', encoding='utf-8') as f:
+            with open(NOTIFICATION_HISTORY_FILE, "r", encoding="utf-8") as f:
                 return json.load(f)
         except:
-            pass
+            return {}
     return {}
 
-def save_notification_history(history):
-    with open(NOTIFICATION_HISTORY_FILE, 'w', encoding='utf-8') as f:
+def save_notification_history(history: dict):
+    with open(NOTIFICATION_HISTORY_FILE, "w", encoding="utf-8") as f:
         json.dump(history, f, ensure_ascii=False, indent=2)
 
-# Декоратор для проверки аутентификации
 def login_required(f):
     @wraps(f)
-    def decorated_function(*args, **kwargs):
-        if 'logged_in' not in session:
-            flash('Пожалуйста, войдите в систему', 'warning')
-            return redirect(url_for('login'))
+    def w(*args, **kwargs):
+        if not session.get("logged_in"):
+            flash("Пожалуйста, войдите в систему", "warning")
+            return redirect(url_for("login"))
         return f(*args, **kwargs)
-    return decorated_function
+    return w
 
-def check_and_send_birthday_notifications():
-    """Проверяет дни рождения и отправляет уведомления."""
-    if not HAS_TELEGRAM:
-        return
-    
-    conn = sqlite3.connect(DB_NAME)
-    cursor = conn.cursor()
-    
-    # Проверяем структуру таблицы
-    cursor.execute("PRAGMA table_info(employees)")
-    columns = [col[1] for col in cursor.fetchall()]
-    
-    # Выбираем только существующие колонки
-    if 'position' in columns and 'department' in columns and 'email' in columns and 'phone' in columns:
-        cursor.execute("SELECT id, name, dob FROM employees")
-    else:
-        cursor.execute("SELECT id, name, dob FROM employees")
-    
-    employees = cursor.fetchall()
-    conn.close()
-    
-    today = datetime.now()
-    tomorrow = today + timedelta(days=1)
-    
-    # Загружаем историю
-    history = load_notification_history()
-    
-    # 1. НАПОМИНАНИЕ на завтра
-    tomorrow_str = tomorrow.strftime("%Y-%m-%d")
-    birthdays_tomorrow = []
-    
-    for emp_id, name, dob in employees:
-        birth_date = datetime.strptime(dob, "%Y-%m-%d")
-        if birth_date.strftime("%m-%d") == tomorrow.strftime("%m-%d"):
-            birthdays_tomorrow.append((emp_id, name, dob))
-    
-    if birthdays_tomorrow:
-        reminder_sent_key = f"reminder_{tomorrow_str}"
-        
-        if reminder_sent_key not in history:
-            # Создаем красивое напоминание
-            message = "🎯 НАПОМИНАНИЕ 🎯\n\n"
-            message += "ЗАВТРА ДЕНЬ РОЖДЕНИЯ!\n\n"
-            
-            message += "Именинники:\n"
-            for emp_id, name, dob in birthdays_tomorrow:
-                birth_date = datetime.strptime(dob, "%Y-%m-%d")
-                age = tomorrow.year - birth_date.year
-                if (tomorrow.month, tomorrow.day) < (birth_date.month, birth_date.day):
-                    age -= 1
-                
-                message += f"\n🎈 {name}"
-                message += f"\n   🎂 Исполняется: {age} {get_age_suffix(age)}"
-                message += f"\n   📅 {birth_date.strftime('%d.%m.%Y')}\n"
-            
-            message += "\n" + get_random_reminder()
-            message += "\n\nПриготовьте поздравления! 🎁"
-            
-            try:
-                send_telegram_notification(message)
-                
-                # Сохраняем в историю
-                history[reminder_sent_key] = {
-                    "type": "reminder",
-                    "date": tomorrow_str,
-                    "sent_at": datetime.now().isoformat(),
-                    "employees": [name for _, name, _ in birthdays_tomorrow],
-                    "message": "Напоминание о днях рождения завтра"
-                }
-                save_notification_history(history)
-                
-                print(f"[{datetime.now().strftime('%H:%M:%S')}] 📢 Отправлено напоминание о {len(birthdays_tomorrow)} днях рождения на завтра")
-            except Exception as e:
-                print(f"❌ Ошибка отправки напоминания: {e}")
-    
-    # 2. ПОЗДРАВЛЕНИЯ на сегодня
-    today_str = today.strftime("%Y-%m-%d")
-    birthdays_today = []
-    
-    for emp_id, name, dob in employees:
-        birth_date = datetime.strptime(dob, "%Y-%m-%d")
-        if birth_date.strftime("%m-%d") == today.strftime("%m-%d"):
-            birthdays_today.append((emp_id, name, dob))
-    
-    if birthdays_today:
-        congrat_sent_key = f"congrat_{today_str}"
-        
-        if congrat_sent_key not in history:
-            # Создаем красивые поздравления
-            message = "🎂 С ДНЁМ РОЖДЕНИЯ! 🎂\n\n"
-            
-            message += "СЕГОДНЯ СВОЙ ПРАЗДНИК ОТМЕЧАЮТ:\n\n"
-            
-            for idx, (emp_id, name, dob) in enumerate(birthdays_today, 1):
-                birth_date = datetime.strptime(dob, "%Y-%m-%d")
-                age = today.year - birth_date.year
-                if (today.month, today.day) < (birth_date.month, birth_date.day):
-                    age -= 1
-                
-                message += f"{idx}. 🎈 {name}\n"
-                message += f"   🎊 {age} {get_age_suffix(age)}!\n"
-                message += f"   📅 {birth_date.strftime('%d.%m.%Y')}\n"
-                message += f"   {get_random_congrat()}\n\n"
-            
-            message += "Желаем счастья, здоровья и успехов!\n"
-            message += "Пусть этот день будет незабываемым! 🥳"
-            
-            try:
-                send_telegram_notification(message)
-                
-                # Сохраняем в историю
-                history[congrat_sent_key] = {
-                    "type": "congratulation",
-                    "date": today_str,
-                    "sent_at": datetime.now().isoformat(),
-                    "employees": [name for _, name, _ in birthdays_today],
-                    "message": "Поздравления с днем рождения сегодня"
-                }
-                save_notification_history(history)
-                
-                print(f"[{datetime.now().strftime('%H:%M:%S')}] 🎉 Отправлены поздравления {len(birthdays_today)} именинникам")
-            except Exception as e:
-                print(f"❌ Ошибка отправки поздравлений: {e}")
+def admin_required(f):
+    @wraps(f)
+    def w(*args, **kwargs):
+        if not session.get("logged_in"):
+            return redirect(url_for("login"))
+        if not session.get("is_admin"):
+            abort(403)
+        return f(*args, **kwargs)
+    return w
 
-def background_birthday_check():
-    """Фоновая проверка дней рождения."""
-    print("🔄 Фоновая проверка дней рождения запущена")
-    
-    # Первая проверка сразу при старте
-    check_and_send_birthday_notifications()
-    
-    # Затем проверяем каждые 6 часов
-    while True:
-        try:
-            # Ждем 6 часов (21600 секунд)
-            time.sleep(21600)
-            check_and_send_birthday_notifications()
-        except Exception as e:
-            print(f"❌ Ошибка в фоновой проверке: {e}")
-            time.sleep(300)
+def table_columns(cursor, table_name: str):
+    cursor.execute(f"PRAGMA table_info({table_name})")
+    return [r[1] for r in cursor.fetchall()]
 
-def start_background_check():
-    """Запуск фоновой проверки."""
-    thread = threading.Thread(target=background_birthday_check, daemon=True)
-    thread.start()
-    print("✅ Фоновая проверка запущена в отдельном потоке")
-    return thread
-
-# Инициализация базы данных
 def init_db():
     conn = sqlite3.connect(DB_NAME)
-    cursor = conn.cursor()
-    
-    # Создаем таблицу сотрудников (простая версия)
-    cursor.execute("""
-        CREATE TABLE IF NOT EXISTS employees (
-            id INTEGER PRIMARY KEY AUTOINCREMENT,
-            name TEXT NOT NULL,
-            dob TEXT NOT NULL
-        )
-    """)
-    
-    # Таблица пользователей
-    cursor.execute("""
+    cur = conn.cursor()
+
+    # users (миграция под is_admin)
+    cur.execute("""
         CREATE TABLE IF NOT EXISTS users (
             id INTEGER PRIMARY KEY AUTOINCREMENT,
             username TEXT UNIQUE NOT NULL,
             password TEXT NOT NULL
         )
     """)
-    
-    # Проверяем наличие дефолтного пользователя
-    cursor.execute("SELECT * FROM users WHERE username = ?", ('admin',))
-    if not cursor.fetchone():
-        hashed_password = generate_password_hash('admin123')
-        cursor.execute("INSERT INTO users (username, password) VALUES (?, ?)", 
-                      ('admin', hashed_password))
-        print("👤 Создан дефолтный пользователь: admin / admin123")
-    
+    cols = table_columns(cur, "users")
+    if "is_admin" not in cols:
+        cur.execute("ALTER TABLE users ADD COLUMN is_admin INTEGER DEFAULT 0")
+
+    # departments
+    cur.execute("""
+        CREATE TABLE IF NOT EXISTS departments (
+            id INTEGER PRIMARY KEY AUTOINCREMENT,
+            name TEXT UNIQUE NOT NULL
+        )
+    """)
+
+    # employees (миграция под department_id)
+    cur.execute("""
+        CREATE TABLE IF NOT EXISTS employees (
+            id INTEGER PRIMARY KEY AUTOINCREMENT,
+            name TEXT NOT NULL,
+            dob TEXT NOT NULL
+        )
+    """)
+    emp_cols = table_columns(cur, "employees")
+    if "department_id" not in emp_cols:
+        cur.execute("ALTER TABLE employees ADD COLUMN department_id INTEGER")
+
+    # default admin
+    cur.execute("SELECT id FROM users WHERE username=?", ("admin",))
+    if not cur.fetchone():
+        cur.execute(
+            "INSERT INTO users (username, password, is_admin) VALUES (?, ?, 1)",
+            ("admin", generate_password_hash("admin123"))
+        )
+    else:
+        cur.execute("UPDATE users SET is_admin=1 WHERE username='admin'")
+
+    # seed departments
+    cur.execute("SELECT COUNT(*) FROM departments")
+    if cur.fetchone()[0] == 0:
+        cur.executemany(
+            "INSERT INTO departments (name) VALUES (?)",
+            [("IT",), ("HR",), ("Продажи",)]
+        )
+
     conn.commit()
     conn.close()
 
-init_db()
+def get_departments():
+    conn = sqlite3.connect(DB_NAME)
+    cur = conn.cursor()
+    cur.execute("SELECT id, name FROM departments ORDER BY name")
+    deps = cur.fetchall()
+    conn.close()
+    return deps
 
-# Запускаем фоновую проверку при старте
-bg_thread = start_background_check()
+def check_and_send_birthday_notifications(force_send=False):
+    """Авто/ручная проверка. Если force_send=True — игнорируем историю (полезно для ручной проверки)."""
+    if not HAS_TELEGRAM:
+        return (False, "Telegram не настроен")
 
-# Маршрут входа в систему
-@app.route('/login', methods=['GET', 'POST'])
+    conn = sqlite3.connect(DB_NAME)
+    cur = conn.cursor()
+    cur.execute("""
+        SELECT e.id, e.name, e.dob, COALESCE(d.name,'') as dept
+        FROM employees e
+        LEFT JOIN departments d ON d.id = e.department_id
+    """)
+    employees = cur.fetchall()
+    conn.close()
+
+    today = datetime.now()
+    tomorrow = today + timedelta(days=1)
+    history = load_notification_history()
+
+    # 1) reminder for tomorrow
+    tomorrow_key = f"reminder_{tomorrow.strftime('%Y-%m-%d')}"
+    birthdays_tomorrow = []
+    for emp_id, name, dob, dept in employees:
+        bd = datetime.strptime(dob, "%Y-%m-%d")
+        if bd.strftime("%m-%d") == tomorrow.strftime("%m-%d"):
+            birthdays_tomorrow.append((emp_id, name, dob, dept))
+
+    if birthdays_tomorrow and (force_send or tomorrow_key not in history):
+        msg = "🎯 НАПОМИНАНИЕ 🎯\n\nЗАВТРА ДЕНЬ РОЖДЕНИЯ!\n\nИменинники:\n"
+        for _, name, dob, dept in birthdays_tomorrow:
+            bd = datetime.strptime(dob, "%Y-%m-%d")
+            age = tomorrow.year - bd.year
+            if (tomorrow.month, tomorrow.day) < (bd.month, bd.day):
+                age -= 1
+            if dept:
+                msg += f"\n🎈 {name} ({dept})"
+            else:
+                msg += f"\n🎈 {name}"
+            msg += f"\n   🎂 Исполняется: {age} {get_age_suffix(age)}"
+            msg += f"\n   📅 {bd.strftime('%d.%m.%Y')}\n"
+        msg += "\n" + get_random_reminder()
+
+        if send_telegram_notification(msg) and not force_send:
+            history[tomorrow_key] = {"type": "reminder", "sent_at": datetime.now().isoformat()}
+            save_notification_history(history)
+
+    # 2) congrats today
+    today_key = f"congrat_{today.strftime('%Y-%m-%d')}"
+    birthdays_today = []
+    for emp_id, name, dob, dept in employees:
+        bd = datetime.strptime(dob, "%Y-%m-%d")
+        if bd.strftime("%m-%d") == today.strftime("%m-%d"):
+            birthdays_today.append((emp_id, name, dob, dept))
+
+    if birthdays_today and (force_send or today_key not in history):
+        msg = "🎂 С ДНЁМ РОЖДЕНИЯ! 🎂\n\nСЕГОДНЯ ПРАЗДНУЮТ:\n\n"
+        for i, (_, name, dob, dept) in enumerate(birthdays_today, 1):
+            bd = datetime.strptime(dob, "%Y-%m-%d")
+            age = today.year - bd.year
+            if (today.month, today.day) < (bd.month, bd.day):
+                age -= 1
+            title = f"{name} ({dept})" if dept else name
+            msg += f"{i}. 🎈 {title}\n"
+            msg += f"   🎊 {age} {get_age_suffix(age)}\n"
+            msg += f"   {get_random_congrat()}\n\n"
+
+        if send_telegram_notification(msg) and not force_send:
+            history[today_key] = {"type": "congrat", "sent_at": datetime.now().isoformat()}
+            save_notification_history(history)
+
+    return (True, "ok")
+
+def background_loop():
+    # первая проверка сразу
+    try:
+        check_and_send_birthday_notifications()
+    except Exception as e:
+        print("❌ background first run:", e)
+
+    while True:
+        try:
+            time.sleep(21600)  # 6 часов
+            check_and_send_birthday_notifications()
+        except Exception as e:
+            print("❌ background loop:", e)
+            time.sleep(300)
+
+_bg_started = False
+def start_bg_once():
+    global _bg_started
+    if _bg_started:
+        return
+    _bg_started = True
+    t = threading.Thread(target=background_loop, daemon=True)
+    t.start()
+    print("✅ Фоновая проверка запущена")
+
+# -------------------- ROUTES --------------------
+
+@app.route("/login", methods=["GET", "POST"])
 def login():
-    if 'logged_in' in session:
-        return redirect(url_for('index'))
-    
-    if request.method == 'POST':
-        username = request.form.get('username')
-        password = request.form.get('password')
-        
-        conn = sqlite3.connect(DB_NAME)
-        cursor = conn.cursor()
-        cursor.execute("SELECT * FROM users WHERE username = ?", (username,))
-        user = cursor.fetchone()
-        conn.close()
-        
-        if user and check_password_hash(user[2], password):
-            session['logged_in'] = True
-            session['username'] = username
-            session['user_id'] = user[0]
-            flash('Вы успешно вошли в систему!', 'success')
-            return redirect(url_for('index'))
-        else:
-            flash('Неверное имя пользователя или пароль', 'danger')
-    
-    return render_template('login.html')
+    if session.get("logged_in"):
+        return redirect(url_for("index"))
 
-# Маршрут выхода
-@app.route('/logout')
+    if request.method == "POST":
+        username = request.form.get("username", "").strip()
+        password = request.form.get("password", "")
+
+        conn = sqlite3.connect(DB_NAME)
+        cur = conn.cursor()
+        cur.execute("SELECT id, username, password, is_admin FROM users WHERE username=?", (username,))
+        user = cur.fetchone()
+        conn.close()
+
+        if user and check_password_hash(user[2], password):
+            session["logged_in"] = True
+            session["user_id"] = user[0]
+            session["username"] = user[1]
+            session["is_admin"] = bool(user[3])
+            flash("Вы успешно вошли в систему!", "success")
+            return redirect(url_for("index"))
+
+        flash("Неверное имя пользователя или пароль", "danger")
+
+    return render_template("login.html")
+
+@app.route("/logout")
 def logout():
     session.clear()
-    flash('Вы вышли из системы', 'info')
-    return redirect(url_for('login'))
+    flash("Вы вышли из системы", "info")
+    return redirect(url_for("login"))
 
-# Главная страница
 @app.route("/", methods=["GET", "POST"])
 @login_required
 def index():
     conn = sqlite3.connect(DB_NAME)
-    cursor = conn.cursor()
+    cur = conn.cursor()
 
+    # add employee
     if request.method == "POST":
         action = request.form.get("action")
-
         if action == "add_employee":
-            name = request.form.get("name")
-            dob = request.form.get("dob")
-            
-            if name and dob:
-                birth_date = datetime.strptime(dob, "%Y-%m-%d")
-                if birth_date > datetime.now():
-                    flash('Дата рождения не может быть в будущем', 'danger')
-                else:
-                    cursor.execute("INSERT INTO employees (name, dob) VALUES (?, ?)", (name, dob))
-                    conn.commit()
-                    flash(f'Сотрудник {name} успешно добавлен!', 'success')
-            return redirect(url_for('index'))
+            name = request.form.get("name", "").strip()
+            dob = request.form.get("dob", "").strip()
+            dept_id = request.form.get("department_id", "").strip() or None
 
-    # Получение сотрудников - используем только существующие колонки
-    try:
-        cursor.execute("SELECT id, name, dob FROM employees")
-    except sqlite3.OperationalError:
-        # Если ошибка, создаем таблицу заново
-        cursor.execute("""
-            CREATE TABLE IF NOT EXISTS employees (
-                id INTEGER PRIMARY KEY AUTOINCREMENT,
-                name TEXT NOT NULL,
-                dob TEXT NOT NULL
-            )
-        """)
-        cursor.execute("SELECT id, name, dob FROM employees")
-    
-    rows = cursor.fetchall()
-    employees = [
-        {
-            "id": r[0], 
-            "name": r[1], 
-            "dob": r[2]
-        } for r in rows
-    ]
+            if not name or not dob:
+                flash("Заполните имя и дату рождения", "danger")
+                return redirect(url_for("index"))
 
-    # Сортировка по месяцу и дню
-    employees_sorted = sorted(
-        employees,
-        key=lambda x: datetime.strptime(x["dob"], "%Y-%m-%d").replace(year=1900)
-    )
+            bd = datetime.strptime(dob, "%Y-%m-%d")
+            if bd > datetime.now():
+                flash("Дата рождения не может быть в будущем", "danger")
+                return redirect(url_for("index"))
 
-    # Дни рождения завтра
-    tomorrow = (datetime.now() + timedelta(days=1)).strftime("%m-%d")
-    birthdays_tomorrow = [
-        e["name"] for e in employees
-        if datetime.strptime(e["dob"], "%Y-%m-%d").strftime("%m-%d") == tomorrow
-    ]
+            cur.execute("INSERT INTO employees (name, dob, department_id) VALUES (?, ?, ?)", (name, dob, dept_id))
+            conn.commit()
+            flash(f"Сотрудник {name} добавлен!", "success")
+            return redirect(url_for("index"))
 
-    # Дни рождения сегодня
-    today = datetime.now().strftime("%m-%d")
-    birthdays_today = [
-        e["name"] for e in employees
-        if datetime.strptime(e["dob"], "%Y-%m-%d").strftime("%m-%d") == today
-    ]
-
+    # list employees + dept name
+    cur.execute("""
+        SELECT e.id, e.name, e.dob, COALESCE(d.name,'') as department
+        FROM employees e
+        LEFT JOIN departments d ON d.id = e.department_id
+    """)
+    rows = cur.fetchall()
     conn.close()
+
+    employees = [{"id": r[0], "name": r[1], "dob": r[2], "department": r[3]} for r in rows]
+    employees_sorted = sorted(employees, key=lambda x: datetime.strptime(x["dob"], "%Y-%m-%d").replace(year=1900))
+
+    today_md = datetime.now().strftime("%m-%d")
+    tomorrow_md = (datetime.now() + timedelta(days=1)).strftime("%m-%d")
+
+    birthdays_today = [e["name"] for e in employees if datetime.strptime(e["dob"], "%Y-%m-%d").strftime("%m-%d") == today_md]
+    birthdays_tomorrow = [e["name"] for e in employees if datetime.strptime(e["dob"], "%Y-%m-%d").strftime("%m-%d") == tomorrow_md]
 
     return render_template(
         "index.html",
         employees=employees_sorted,
-        birthdays_tomorrow=birthdays_tomorrow,
         birthdays_today=birthdays_today,
-        username=session.get('username'),
+        birthdays_tomorrow=birthdays_tomorrow,
+        username=session.get("username"),
+        is_admin=session.get("is_admin"),
         now=datetime.now(),
-        get_age_suffix=get_age_suffix
+        get_age_suffix=get_age_suffix,
+        departments=get_departments()
     )
 
-# API для получения данных сотрудника
 @app.route("/get_employee/<int:employee_id>")
 @login_required
 def get_employee(employee_id):
     conn = sqlite3.connect(DB_NAME)
-    cursor = conn.cursor()
-    
-    try:
-        cursor.execute("SELECT id, name, dob FROM employees WHERE id = ?", (employee_id,))
-    except sqlite3.OperationalError:
-        return jsonify({"error": "Ошибка базы данных"}), 500
-    
-    row = cursor.fetchone()
+    cur = conn.cursor()
+    cur.execute("SELECT id, name, dob, department_id FROM employees WHERE id=?", (employee_id,))
+    row = cur.fetchone()
     conn.close()
-    
-    if row:
-        employee = {
-            "id": row[0],
-            "name": row[1],
-            "dob": row[2]
-        }
-        return jsonify(employee)
-    else:
-        return jsonify({"error": "Сотрудник не найден"}), 404
 
-# Обновление данных сотрудника
+    if not row:
+        return jsonify({"error": "not found"}), 404
+
+    return jsonify({"id": row[0], "name": row[1], "dob": row[2], "department_id": row[3]})
+
 @app.route("/update_employee", methods=["POST"])
 @login_required
 def update_employee():
-    try:
-        employee_id = request.form.get("employee_id")
-        name = request.form.get("name")
-        dob = request.form.get("dob")
-        
-        if not employee_id or not name or not dob:
-            flash('Обязательные поля не заполнены', 'danger')
-            return redirect(url_for('index'))
-        
-        birth_date = datetime.strptime(dob, "%Y-%m-%d")
-        if birth_date > datetime.now():
-            flash('Дата рождения не может быть в будущем', 'danger')
-            return redirect(url_for('index'))
-        
-        conn = sqlite3.connect(DB_NAME)
-        cursor = conn.cursor()
-        
-        cursor.execute("UPDATE employees SET name = ?, dob = ? WHERE id = ?", (name, dob, employee_id))
-        
-        conn.commit()
-        conn.close()
-        
-        flash(f'Данные сотрудника {name} успешно обновлены!', 'success')
-        
-    except Exception as e:
-        flash(f'Ошибка при обновлении: {str(e)}', 'danger')
-    
-    return redirect(url_for('index'))
+    employee_id = request.form.get("employee_id")
+    name = request.form.get("name", "").strip()
+    dob = request.form.get("dob", "").strip()
+    dept_id = request.form.get("department_id", "").strip() or None
 
-# Удаление сотрудников
+    if not employee_id or not name or not dob:
+        flash("Заполните все поля", "danger")
+        return redirect(url_for("index"))
+
+    bd = datetime.strptime(dob, "%Y-%m-%d")
+    if bd > datetime.now():
+        flash("Дата рождения не может быть в будущем", "danger")
+        return redirect(url_for("index"))
+
+    conn = sqlite3.connect(DB_NAME)
+    cur = conn.cursor()
+    cur.execute("UPDATE employees SET name=?, dob=?, department_id=? WHERE id=?", (name, dob, dept_id, employee_id))
+    conn.commit()
+    conn.close()
+
+    flash("Сотрудник обновлён!", "success")
+    return redirect(url_for("index"))
+
 @app.route("/delete_employees", methods=["POST"])
 @login_required
 def delete_employees():
-    ids_to_delete = request.form.getlist("delete_ids")
-    if ids_to_delete:
-        conn = sqlite3.connect(DB_NAME)
-        cursor = conn.cursor()
-        
-        placeholders = ','.join(['?'] * len(ids_to_delete))
-        
-        # Получаем имена удаляемых сотрудников
-        cursor.execute(f"SELECT name FROM employees WHERE id IN ({placeholders})", ids_to_delete)
-        deleted_names = [row[0] for row in cursor.fetchall()]
-        
-        # Удаляем сотрудников
-        cursor.execute(f"DELETE FROM employees WHERE id IN ({placeholders})", ids_to_delete)
-        conn.commit()
-        conn.close()
-        
-        if deleted_names:
-            names_str = ', '.join(deleted_names[:3])
-            if len(deleted_names) > 3:
-                names_str += f" и ещё {len(deleted_names) - 3}"
-            flash(f'Удалены сотрудники: {names_str}', 'success')
-    return redirect(url_for('index'))
+    ids = request.form.getlist("delete_ids")
+    if not ids:
+        return redirect(url_for("index"))
 
-# Управление пользователями
-@app.route("/users", methods=["GET", "POST"])
-@login_required
-def manage_users():
-    if session.get('username') != 'admin':
-        flash('У вас нет прав для управления пользователями', 'danger')
-        return redirect(url_for('index'))
-    
     conn = sqlite3.connect(DB_NAME)
-    cursor = conn.cursor()
-    
+    cur = conn.cursor()
+    placeholders = ",".join(["?"] * len(ids))
+    cur.execute(f"DELETE FROM employees WHERE id IN ({placeholders})", ids)
+    conn.commit()
+    conn.close()
+
+    flash("Удалено!", "success")
+    return redirect(url_for("index"))
+
+@app.route("/users", methods=["GET", "POST"])
+@admin_required
+def users():
+    conn = sqlite3.connect(DB_NAME)
+    cur = conn.cursor()
+
     if request.method == "POST":
         action = request.form.get("action")
-        
+
         if action == "add_user":
-            username = request.form.get("username")
-            password = request.form.get("password")
-            confirm_password = request.form.get("confirm_password")
-            
+            username = request.form.get("username", "").strip()
+            password = request.form.get("password", "")
+            confirm = request.form.get("confirm_password", "")
+
             if not username or not password:
-                flash('Заполните все поля', 'danger')
-            elif password != confirm_password:
-                flash('Пароли не совпадают', 'danger')
+                flash("Заполните все поля", "danger")
+            elif password != confirm:
+                flash("Пароли не совпадают", "danger")
             elif len(password) < 6:
-                flash('Пароль должен содержать минимум 6 символов', 'danger')
+                flash("Пароль минимум 6 символов", "danger")
             else:
-                hashed_password = generate_password_hash(password)
                 try:
-                    cursor.execute("INSERT INTO users (username, password) VALUES (?, ?)", 
-                                  (username, hashed_password))
+                    cur.execute("INSERT INTO users (username, password, is_admin) VALUES (?, ?, 0)",
+                                (username, generate_password_hash(password)))
                     conn.commit()
-                    flash(f'Пользователь {username} успешно создан!', 'success')
+                    flash("Пользователь создан", "success")
                 except sqlite3.IntegrityError:
-                    flash('Пользователь с таким именем уже существует', 'danger')
-        
+                    flash("Такой пользователь уже существует", "danger")
+
         elif action == "delete_user":
             user_id = request.form.get("user_id")
-            if user_id != '1':  # Нельзя удалить дефолтного админа
-                cursor.execute("DELETE FROM users WHERE id = ?", (user_id,))
-                conn.commit()
-                flash('Пользователь удален', 'success')
+            cur.execute("SELECT username FROM users WHERE id=?", (user_id,))
+            row = cur.fetchone()
+            if row and row[0] == "admin":
+                flash("Нельзя удалить admin", "warning")
             else:
-                flash('Нельзя удалить дефолтного администратора', 'warning')
-    
-    cursor.execute("SELECT id, username FROM users")
-    users = cursor.fetchall()
-    conn.close()
-    
-    return render_template("users.html", users=users)
+                cur.execute("DELETE FROM users WHERE id=?", (user_id,))
+                conn.commit()
+                flash("Пользователь удалён", "success")
 
-# Ручная проверка дней рождения
+    cur.execute("SELECT id, username FROM users ORDER BY id")
+    users_list = cur.fetchall()
+    conn.close()
+    return render_template("users.html", users=users_list)
+
+@app.route("/departments", methods=["GET", "POST"])
+@admin_required
+def departments():
+    conn = sqlite3.connect(DB_NAME)
+    cur = conn.cursor()
+
+    if request.method == "POST":
+        name = request.form.get("name", "").strip()
+        if not name:
+            flash("Название отдела пустое", "danger")
+        else:
+            try:
+                cur.execute("INSERT INTO departments (name) VALUES (?)", (name,))
+                conn.commit()
+                flash("Отдел добавлен", "success")
+            except sqlite3.IntegrityError:
+                flash("Такой отдел уже есть", "danger")
+
+    cur.execute("SELECT id, name FROM departments ORDER BY name")
+    deps = cur.fetchall()
+    conn.close()
+    return render_template("departments.html", departments=deps)
+
 @app.route("/check_birthdays_manual")
 @login_required
 def check_birthdays_manual():
-    """Ручная проверка с отправкой обоих типов уведомлений."""
-    if session.get('username') != 'admin':
-        flash('У вас нет прав для этой операции', 'danger')
-        return redirect(url_for('index'))
-    
-    if not HAS_TELEGRAM:
-        flash('Модуль Telegram уведомлений не настроен', 'warning')
-        return redirect(url_for('index'))
-    
-    try:
-        # Загружаем сотрудников
-        conn = sqlite3.connect(DB_NAME)
-        cursor = conn.cursor()
-        cursor.execute("SELECT name, dob FROM employees")
-        employees = cursor.fetchall()
-        conn.close()
-        
-        today = datetime.now()
-        tomorrow = today + timedelta(days=1)
-        
-        # 1. Напоминание на завтра
-        birthdays_tomorrow = []
-        for name, dob in employees:
-            birth_date = datetime.strptime(dob, "%Y-%m-%d")
-            if birth_date.strftime("%m-%d") == tomorrow.strftime("%m-%d"):
-                birthdays_tomorrow.append((name, dob))
-        
-        if birthdays_tomorrow:
-            message = "🎯 РУЧНАЯ ПРОВЕРКА: НАПОМИНАНИЕ 🎯\n\n"
-            message += "ЗАВТРА ДЕНЬ РОЖДЕНИЯ!\n\n"
-            
-            message += "Именинники:\n"
-            for name, dob in birthdays_tomorrow:
-                birth_date = datetime.strptime(dob, "%Y-%m-%d")
-                age = tomorrow.year - birth_date.year
-                if (tomorrow.month, tomorrow.day) < (birth_date.month, birth_date.day):
-                    age -= 1
-                
-                message += f"\n🎈 {name}"
-                message += f"\n   🎂 Исполняется: {age} {get_age_suffix(age)}"
-                message += f"\n   📅 {birth_date.strftime('%d.%m.%Y')}\n"
-            
-            message += "\n" + get_random_reminder()
-            
-            send_telegram_notification(message)
-            flash(f'✅ Отправлено напоминание о {len(birthdays_tomorrow)} днях рождения завтра', 'success')
-        else:
-            flash('ℹ️  Завтра никто не празднует день рождения', 'info')
-        
-        # 2. Поздравления на сегодня
-        birthdays_today = []
-        for name, dob in employees:
-            birth_date = datetime.strptime(dob, "%Y-%m-%d")
-            if birth_date.strftime("%m-%d") == today.strftime("%m-%d"):
-                birthdays_today.append((name, dob))
-        
-        if birthdays_today:
-            message = "🎂 РУЧНАЯ ПРОВЕРКА: С ДНЁМ РОЖДЕНИЯ! 🎂\n\n"
-            
-            message += "СЕГОДНЯ СВОЙ ПРАЗДНИК ОТМЕЧАЮТ:\n\n"
-            
-            for idx, (name, dob) in enumerate(birthdays_today, 1):
-                birth_date = datetime.strptime(dob, "%Y-%m-%d")
-                age = today.year - birth_date.year
-                if (today.month, today.day) < (birth_date.month, birth_date.day):
-                    age -= 1
-                
-                message += f"{idx}. 🎈 {name}\n"
-                message += f"   🎊 {age} {get_age_suffix(age)}!\n"
-                message += f"   📅 {birth_date.strftime('%d.%m.%Y')}\n"
-                message += f"   {get_random_congrat()}\n\n"
-            
-            message += "Желаем счастья, здоровья и успехов! 🥳"
-            
-            send_telegram_notification(message)
-            flash(f'✅ Отправлены поздравления {len(birthdays_today)} именинникам', 'success')
-        else:
-            flash('ℹ️  Сегодня никто не празднует день рождения', 'info')
-        
-    except Exception as e:
-        flash(f'❌ Ошибка при отправке: {str(e)}', 'danger')
-    
-    return redirect(url_for('index'))
+    # ВНИМАНИЕ: без Forbidden — может нажимать любой, но отправка в Telegram только если он включён
+    ok, msg = check_and_send_birthday_notifications(force_send=True)
+    if not ok:
+        flash(msg, "warning")
+    else:
+        flash("Проверка выполнена (уведомления отправлены, если есть именинники).", "success")
+    return redirect(url_for("index"))
 
-# Тестовое уведомление
 @app.route("/send_test_notification")
 @login_required
 def send_test_notification():
-    """Отправляет тестовое уведомление."""
     if not HAS_TELEGRAM:
-        return jsonify({"success": False, "error": "Telegram модуль не настроен"})
-    
-    try:
-        test_message = f"🧪 ТЕСТОВОЕ УВЕДОМЛЕНИЕ\n\n"
-        test_message += f"Время: {datetime.now().strftime('%d.%m.%Y %H:%M:%S')}\n"
-        test_message += "Система уведомлений работает корректно!\n\n"
-        test_message += "✅ Напоминания отправляются за день до ДР\n"
-        test_message += "✅ Поздравления отправляются в день ДР"
-        
-        send_telegram_notification(test_message)
-        
-        return jsonify({"success": True, "message": "Тестовое уведомление отправлено"})
-    except Exception as e:
-        return jsonify({"success": False, "error": str(e)})
+        return jsonify({"success": False, "error": "Telegram не настроен"})
+    ok = send_telegram_notification("🧪 ТЕСТ: система уведомлений работает ✅")
+    return jsonify({"success": ok, "error": None if ok else "Ошибка отправки"})
 
-# ================ КОД ЗАПУСКА ВСЕГДА ВЫПОЛНЯЕТСЯ ================
+# -------------------- START --------------------
+init_db()
+start_bg_once()
 
-print("\n" + "=" * 60)
-print("🎂 СИСТЕМА УЧЁТА ДНЕЙ РОЖДЕНИЯ СОТРУДНИКОВ")
-print("=" * 60)
-print(f"📱 Telegram уведомления: {'✅ ВКЛЮЧЕНЫ' if HAS_TELEGRAM else '❌ ВЫКЛЮЧЕНЫ'}")
-print("🔔 Типы уведомлений:")
-print("   1. Напоминание за день до ДР")
-print("   2. Поздравление в день ДР")
-print("⏰ Автопроверка: каждые 6 часов")
-print("🌐 Веб-интерфейс: http://localhost:5000")
-print("👤 Логин: admin | 🔑 Пароль: admin123")
-print("=" * 60)
-
-# Отправляем уведомление о запуске
-if HAS_TELEGRAM:
-    try:
-        startup_msg = f"🚀 СИСТЕМА ЗАПУЩЕНА\n\n"
-        startup_msg += f"Время: {datetime.now().strftime('%d.%m.%Y %H:%M:%S')}\n"
-        startup_msg += "Система учета дней рождения сотрудников активна!\n\n"
-        startup_msg += "Теперь уведомления будут приходить:\n"
-        startup_msg += "1️⃣ За день до дня рождения (напоминание)\n"
-        startup_msg += "2️⃣ В день рождения (поздравление)"
-        
-        send_telegram_notification(startup_msg)
-        print("✅ Уведомление о запуске отправлено")
-    except Exception as e:
-        print(f"⚠️  Не удалось отправить уведомление о запуске: {e}")
-
-# Запускаем Flask ВНЕ условий
-app.run(host="0.0.0.0", port=5000, debug=False)
-# ================ КОНЕЦ ================
+if __name__ == "__main__":
+    app.run(host="0.0.0.0", port=5000, debug=False)

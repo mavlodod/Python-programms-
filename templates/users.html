@@ -1,126 +1,76 @@
 <!DOCTYPE html>
 <html lang="ru">
 <head>
-    <meta charset="UTF-8">
-    <title>Управление пользователями</title>
-    <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.2/dist/css/bootstrap.min.css" rel="stylesheet">
-    <style>
-        body {
-            padding: 30px;
-            background-color: #f8f9fa;
-        }
-        .header {
-            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
-            color: white;
-            padding: 20px;
-            border-radius: 10px;
-            margin-bottom: 30px;
-        }
-    </style>
+  <meta charset="UTF-8">
+  <title>Пользователи</title>
+  <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.2/dist/css/bootstrap.min.css" rel="stylesheet">
 </head>
-<body>
-<div class="container">
-    <!-- Шапка -->
-    <div class="header">
-        <div class="d-flex justify-content-between align-items-center">
-            <div>
-                <h1>👥 Управление пользователями</h1>
-                <p class="mb-0">Административная панель</p>
-            </div>
-            <div>
-                <a href="{{ url_for('index') }}" class="btn btn-light me-2">На главную</a>
-                <a href="{{ url_for('logout') }}" class="btn btn-outline-light">Выйти</a>
-            </div>
-        </div>
+<body class="bg-light">
+<div class="container py-4">
+  <div class="d-flex justify-content-between align-items-center mb-3">
+    <h3 class="mb-0">👥 Пользователи</h3>
+    <div class="d-flex gap-2">
+      <a class="btn btn-outline-primary" href="{{ url_for('index') }}">На главную</a>
+      <a class="btn btn-danger" href="{{ url_for('logout') }}">Выйти</a>
     </div>
+  </div>
 
-    <!-- Сообщения flash -->
-    {% with messages = get_flashed_messages(with_categories=true) %}
-        {% if messages %}
-            {% for category, message in messages %}
-                <div class="alert alert-{{ category }} alert-dismissible fade show" role="alert">
-                    {{ message }}
-                    <button type="button" class="btn-close" data-bs-dismiss="alert"></button>
-                </div>
-            {% endfor %}
-        {% endif %}
-    {% endwith %}
+  {% with messages = get_flashed_messages(with_categories=true) %}
+    {% if messages %}
+      {% for category, message in messages %}
+        <div class="alert alert-{{ category }}">{{ message }}</div>
+      {% endfor %}
+    {% endif %}
+  {% endwith %}
 
-    <!-- Форма добавления пользователя -->
-    <div class="card mb-4 shadow-sm">
-        <div class="card-header bg-success text-white">
-            <h5 class="mb-0">Добавить нового пользователя</h5>
+  <div class="card mb-3">
+    <div class="card-header">Добавить пользователя</div>
+    <div class="card-body">
+      <form method="POST" class="row g-2">
+        <input type="hidden" name="action" value="add_user">
+        <div class="col-md-4">
+          <input class="form-control" name="username" placeholder="username" required>
         </div>
-        <div class="card-body">
-            <form method="POST">
-                <input type="hidden" name="action" value="add_user">
-                <div class="row">
-                    <div class="col-md-4 mb-3">
-                        <input type="text" class="form-control" name="username" 
-                               placeholder="Имя пользователя" required>
-                    </div>
-                    <div class="col-md-3 mb-3">
-                        <input type="password" class="form-control" name="password" 
-                               placeholder="Пароль (мин. 6 символов)" required>
-                    </div>
-                    <div class="col-md-3 mb-3">
-                        <input type="password" class="form-control" name="confirm_password" 
-                               placeholder="Подтвердите пароль" required>
-                    </div>
-                    <div class="col-md-2 mb-3">
-                        <button type="submit" class="btn btn-success w-100">Создать</button>
-                    </div>
-                </div>
-            </form>
+        <div class="col-md-3">
+          <input class="form-control" name="password" type="password" placeholder="пароль" required>
         </div>
+        <div class="col-md-3">
+          <input class="form-control" name="confirm_password" type="password" placeholder="повтор" required>
+        </div>
+        <div class="col-md-2">
+          <button class="btn btn-success w-100">Создать</button>
+        </div>
+      </form>
     </div>
+  </div>
 
-    <!-- Список пользователей -->
-    <div class="card shadow-sm">
-        <div class="card-header bg-primary text-white">
-            <h5 class="mb-0">Список пользователей</h5>
-        </div>
-        <div class="card-body">
-            <table class="table table-striped">
-                <thead>
-                    <tr>
-                        <th>ID</th>
-                        <th>Имя пользователя</th>
-                        <th>Действия</th>
-                    </tr>
-                </thead>
-                <tbody>
-                    {% for user in users %}
-                    <tr>
-                        <td>{{ user[0] }}</td>
-                        <td>
-                            {{ user[1] }}
-                            {% if user[1] == 'admin' %}
-                            <span class="badge bg-warning">Администратор</span>
-                            {% endif %}
-                        </td>
-                        <td>
-                            {% if user[1] != 'admin' %}
-                            <form method="POST" style="display: inline;">
-                                <input type="hidden" name="action" value="delete_user">
-                                <input type="hidden" name="user_id" value="{{ user[0] }}">
-                                <button type="submit" class="btn btn-danger btn-sm" 
-                                        onclick="return confirm('Удалить пользователя {{ user[1] }}?')">
-                                    Удалить
-                                </button>
-                            </form>
-                            {% else %}
-                            <span class="text-muted">Системный пользователь</span>
-                            {% endif %}
-                        </td>
-                    </tr>
-                    {% endfor %}
-                </tbody>
-            </table>
-        </div>
+  <div class="card">
+    <div class="card-header">Список</div>
+    <div class="card-body p-0">
+      <table class="table table-striped mb-0">
+        <thead><tr><th>ID</th><th>Логин</th><th></th></tr></thead>
+        <tbody>
+          {% for u in users %}
+          <tr>
+            <td>{{ u[0] }}</td>
+            <td>{{ u[1] }} {% if u[1]=='admin' %}<span class="badge bg-warning text-dark">admin</span>{% endif %}</td>
+            <td class="text-end">
+              {% if u[1] != 'admin' %}
+              <form method="POST" style="display:inline;">
+                <input type="hidden" name="action" value="delete_user">
+                <input type="hidden" name="user_id" value="{{ u[0] }}">
+                <button class="btn btn-sm btn-danger" onclick="return confirm('Удалить?')">Удалить</button>
+              </form>
+              {% else %}
+              <span class="text-muted">нельзя удалить</span>
+              {% endif %}
+            </td>
+          </tr>
+          {% endfor %}
+        </tbody>
+      </table>
     </div>
+  </div>
 </div>
-
-<script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.2/dist/js/bootstrap.bundle.min.js"></script>
 </body>
 </html>

@@ -1,0 +1,48 @@
+<!DOCTYPE html>
+<html lang="ru">
+<head>
+  <meta charset="UTF-8">
+  <title>Отделы</title>
+  <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.2/dist/css/bootstrap.min.css" rel="stylesheet">
+</head>
+<body class="bg-light">
+<div class="container py-4">
+  <div class="d-flex justify-content-between align-items-center mb-3">
+    <h3 class="mb-0">🏢 Отделы</h3>
+    <div class="d-flex gap-2">
+      <a class="btn btn-outline-primary" href="{{ url_for('index') }}">На главную</a>
+      <a class="btn btn-danger" href="{{ url_for('logout') }}">Выйти</a>
+    </div>
+  </div>
+
+  {% with messages = get_flashed_messages(with_categories=true) %}
+    {% if messages %}
+      {% for category, message in messages %}
+        <div class="alert alert-{{ category }}">{{ message }}</div>
+      {% endfor %}
+    {% endif %}
+  {% endwith %}
+
+  <div class="card mb-3">
+    <div class="card-header">Добавить отдел</div>
+    <div class="card-body">
+      <form method="POST" class="d-flex gap-2">
+        <input class="form-control" name="name" placeholder="Название отдела" required>
+        <button class="btn btn-success">Добавить</button>
+      </form>
+    </div>
+  </div>
+
+  <div class="card">
+    <div class="card-header">Список</div>
+    <div class="card-body">
+      <ul class="mb-0">
+        {% for d in departments %}
+          <li>{{ d[1] }}</li>
+        {% endfor %}
+      </ul>
+    </div>
+  </div>
+</div>
+</body>
+</html>
