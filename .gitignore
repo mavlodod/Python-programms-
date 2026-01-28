@@ -4,3 +4,4 @@ venv/
 __pycache__/
 notification_history.json
 employees.db
+data/
