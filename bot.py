@@ -23,7 +23,7 @@ from telegram.ext import (
 
 BOT_TOKEN = os.getenv("TELEGRAM_TOKEN")
 API_KEY = os.getenv("BIRTHDAY_API_KEY", "CHANGE_ME_123")
-BASE_URL = os.getenv("FLASK_BASE_URL", "http://127.0.0.1:5000").rstrip("/")
+BASE_URL = os.getenv("FLASK_BASE_URL", "http://10.200.101.50:5000").rstrip("/")
 
 
 def must_env(name: str, value: str | None):
