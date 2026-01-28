@@ -498,9 +498,168 @@ def send_test_notification():
     ok = send_telegram_notification("🧪 ТЕСТ: система уведомлений работает ✅")
     return jsonify({"success": ok, "error": None if ok else "Ошибка отправки"})
 
+# ===================== API ДЛЯ TELEGRAM-БОТА =====================
+API_KEY = os.getenv("BIRTHDAY_API_KEY", "CHANGE_ME_123")
+
+def api_auth() -> bool:
+    return request.headers.get("X-API-KEY") == API_KEY
+
+def api_birthdays_payload(target_date: datetime):
+    conn = sqlite3.connect(DB_NAME)
+    cur = conn.cursor()
+    cur.execute("""
+        SELECT e.id, e.name, e.dob, COALESCE(d.name,'— без отдела —') as dept
+        FROM employees e
+        LEFT JOIN departments d ON d.id = e.department_id
+        ORDER BY e.name
+    """)
+    rows = cur.fetchall()
+    conn.close()
+
+    items = []
+    for emp_id, name, dob, dept in rows:
+        try:
+            bd = datetime.strptime(dob, "%Y-%m-%d")
+        except:
+            continue
+
+        if bd.strftime("%m-%d") == target_date.strftime("%m-%d"):
+            age = target_date.year - bd.year
+            if (target_date.month, target_date.day) < (bd.month, bd.day):
+                age -= 1
+
+            items.append({
+                "id": emp_id,
+                "name": name,
+                "dob": dob,
+                "department": dept,
+                "age": age,
+                "age_suffix": get_age_suffix(age),
+            })
+
+    return {"date": target_date.strftime("%Y-%m-%d"), "birthdays": items}
+
+@app.route("/api/birthdays/today")
+def api_birthdays_today():
+    if not api_auth():
+        return jsonify({"error": "unauthorized"}), 403
+    return jsonify(api_birthdays_payload(datetime.now()))
+
+@app.route("/api/birthdays/tomorrow")
+def api_birthdays_tomorrow():
+    if not api_auth():
+        return jsonify({"error": "unauthorized"}), 403
+    return jsonify(api_birthdays_payload(datetime.now() + timedelta(days=1)))
+
+@app.route("/api/birthdays/next7")
+def api_birthdays_next7():
+    """Ближайшие 7 дней (включая сегодня)"""
+    if not api_auth():
+        return jsonify({"error": "unauthorized"}), 403
+
+    start = datetime.now()
+    days = []
+    total = 0
+
+    for i in range(0, 7):
+        d = start + timedelta(days=i)
+        payload = api_birthdays_payload(d)
+        cnt = len(payload.get("birthdays", []))
+        total += cnt
+        days.append(payload)
+
+    return jsonify({
+        "from": start.strftime("%Y-%m-%d"),
+        "to": (start + timedelta(days=6)).strftime("%Y-%m-%d"),
+        "total": total,
+        "days": days
+    })
+
+@app.route("/api/departments")
+def api_departments():
+    if not api_auth():
+        return jsonify({"error": "unauthorized"}), 403
+
+    conn = sqlite3.connect(DB_NAME)
+    cur = conn.cursor()
+    cur.execute("SELECT id, name FROM departments ORDER BY name")
+    deps = cur.fetchall()
+
+    result = {}
+    for dep_id, dep_name in deps:
+        cur.execute("SELECT id, name, dob FROM employees WHERE department_id=? ORDER BY name", (dep_id,))
+        emps = cur.fetchall()
+        result[dep_name] = [{"id": e[0], "name": e[1], "dob": e[2]} for e in emps]
+
+    cur.execute("SELECT id, name, dob FROM employees WHERE department_id IS NULL ORDER BY name")
+    emps_no = cur.fetchall()
+    result["— без отдела —"] = [{"id": e[0], "name": e[1], "dob": e[2]} for e in emps_no]
+
+    conn.close()
+    return jsonify(result)
+
+@app.route("/api/history")
+def api_history():
+    """последние отправки из notification_history.json"""
+    if not api_auth():
+        return jsonify({"error": "unauthorized"}), 403
+
+    hist = load_notification_history()
+    # превращаем dict в список и сортируем
+    items = []
+    for k, v in hist.items():
+        sent_at = v.get("sent_at", "")
+        items.append({"key": k, **v})
+    items.sort(key=lambda x: x.get("sent_at",""), reverse=True)
+    return jsonify({"count": len(items), "items": items[:30]})
+
+@app.route("/api/congrats/send", methods=["POST"])
+def api_send_congrats():
+    """
+    Отправить поздравление вручную (по умолчанию сегодня).
+    Можно передать дату: /api/congrats/send?date=YYYY-MM-DD
+    """
+    if not api_auth():
+        return jsonify({"error": "unauthorized"}), 403
+
+    if not HAS_TELEGRAM:
+        return jsonify({"success": False, "error": "Telegram не настроен"}), 500
+
+    date_str = request.args.get("date", "").strip()
+    if date_str:
+        try:
+            target_date = datetime.strptime(date_str, "%Y-%m-%d")
+        except:
+            return jsonify({"success": False, "error": "bad date format, use YYYY-MM-DD"}), 400
+    else:
+        target_date = datetime.now()
+
+    data = api_birthdays_payload(target_date)
+    items = data.get("birthdays", [])
+
+    if not items:
+        return jsonify({"success": True, "sent": False, "count": 0, "message": "Именинников нет"}), 200
+
+    msg = "🎂 <b>С ДНЁМ РОЖДЕНИЯ!</b> 🎂\n\n<b>ПРАЗДНУЮТ:</b>\n\n"
+    for i, emp in enumerate(items, 1):
+        name = emp.get("name", "")
+        dept = emp.get("department", "—")
+        age = emp.get("age", "")
+        age_suffix = emp.get("age_suffix", "")
+        title = f"{name} ({dept})" if dept else name
+        msg += f"{i}. 🎈 <b>{title}</b>\n"
+        msg += f"   🎊 {age} {age_suffix}\n"
+        msg += f"   {get_random_congrat()}\n\n"
+
+    ok = send_telegram_notification(msg)
+    return jsonify({"success": ok, "sent": ok, "count": len(items)}), (200 if ok else 500)
+
+# =================== /API ДЛЯ TELEGRAM-БОТА =====================
+
 # -------------------- START --------------------
 init_db()
 start_bg_once()
 
 if __name__ == "__main__":
     app.run(host="0.0.0.0", port=5000, debug=False)
+
