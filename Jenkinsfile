@@ -1,74 +1,113 @@
 pipeline {
   agent any
-
+  
   environment {
-    REMOTE_HOST    = "10.200.101.50"
-    REMOTE_USER    = "mavlodod"
-    REMOTE_DIR     = "/home/mavlodod/Birthday/Python-programms-"
-
-    IMAGE_NAME     = "birthday-app"
-    IMAGE_TAG      = "latest"
-
-    CONTAINER_NAME = "birthday_app_container"
-    HOST_PORT      = "5000"
-    APP_PORT       = "5000"
-
-    SSH_CRED_ID    = "mavlodod-ssh-key"
+    SERVER = "10.200.101.50"
+    USER   = "mavlodod"
+    DIR    = "/home/mavlodod/Birthday/Python-programms-"
+    SSH_ID = "mavlodod-ssh-key"
   }
-
+  
   stages {
-    stage('Build (Jenkins)') {
-      steps {
-        sh 'docker build -t ${IMAGE_NAME}:${IMAGE_TAG} .'
-      }
-    }
-
-    stage('Smoke test (Jenkins)') {
+    stage('Test Build on Jenkins') {
       steps {
         sh '''
-          docker rm -f test_app >/dev/null 2>&1 || true
-          docker run -d -p 5000:5000 --name test_app ${IMAGE_NAME}:${IMAGE_TAG}
+          echo "=== Testing Docker Compose build ==="
+          
+          # Собираем образы
+          docker compose build --no-cache
+          
+          # Запускаем на 5 секунд для теста
+          docker compose up -d
           sleep 5
-          docker ps | grep test_app
-          docker stop test_app
-          docker rm test_app
+          
+          # Проверяем что контейнеры запустились
+          echo "📊 Container status:"
+          docker compose ps
+          
+          # Проверяем что есть хотя бы один запущенный контейнер
+          if docker compose ps | grep -q "Up"; then
+            echo "✅ Smoke test passed - containers are running"
+          else
+            echo "❌ Smoke test failed - containers not running"
+            docker compose logs
+            exit 1
+          fi
+          
+          # Останавливаем тестовые контейнеры
+          echo "🛑 Stopping test containers..."
+          docker compose down
         '''
       }
     }
-
-    stage('Deploy to 10.200.101.50') {
+    
+    stage('Deploy to Production Server') {
       steps {
-        sshagent(credentials: ["${SSH_CRED_ID}"]) {
-          sh '''
-            set -e
-
-            ssh -o StrictHostKeyChecking=no ${REMOTE_USER}@${REMOTE_HOST} "
+        sshagent([SSH_ID]) {
+          sh """
+            echo "🚀 Deploying to production server..."
+            
+            ssh -o StrictHostKeyChecking=no ${USER}@${SERVER} "
               set -e
-
-              cd ${REMOTE_DIR}
-
-              echo '==> Git pull'
-              git pull
-
-              echo '==> Build image on remote'
-              docker build -t ${IMAGE_NAME}:${IMAGE_TAG} .
-
-              echo '==> Restart container'
-              docker rm -f ${CONTAINER_NAME} >/dev/null 2>&1 || true
-
-              docker run -d --restart unless-stopped \
-                -p ${HOST_PORT}:${APP_PORT} \
-                --name ${CONTAINER_NAME} \
-                -v ${REMOTE_DIR}/employees.db:/app/employees.db \
-                -v ${REMOTE_DIR}/notification_history.json:/app/notification_history.json \
-                ${IMAGE_NAME}:${IMAGE_TAG}
-
-              echo '==> Container status'
-              docker ps | grep ${CONTAINER_NAME}
+              cd ${DIR}
+              
+              echo '1. Pulling latest code from GitHub...'
+              git pull origin main
+              
+              echo '2. Stopping existing containers...'
+              docker compose down 2>/dev/null || true
+              
+              echo '3. Building new images...'
+              docker compose build --no-cache
+              
+              echo '4. Starting services...'
+              docker compose up -d
+              
+              echo '5. Waiting for startup...'
+              sleep 10
+              
+              echo '6. Checking status...'
+              docker compose ps
+              
+              echo '🎉 Deployment completed successfully!'
+              echo ''
+              echo '=== Application Information ==='
+              echo '🌐 Web Interface: http://${SERVER}:8080'
+              echo '🔑 Admin login: admin / admin123'
+              echo ''
+              echo '=== Useful Commands ==='
+              echo 'View logs:    docker compose logs -f'
+              echo 'Restart:      docker compose restart'
+              echo 'Stop:         docker compose down'
+              echo 'Update:       git pull && docker compose up -d --build'
             "
-          '''
+          """
         }
       }
+    }
+  }
+  
+  post {
+    always {
+      sh '''
+        echo "🧹 Cleaning up Jenkins workspace..."
+        docker compose down 2>/dev/null || true
+        echo "Build ${currentBuild.result} - #${BUILD_NUMBER}"
+      '''
+    }
+    
+    success {
+      sh """
+        echo "✅ DEPLOYMENT SUCCESSFUL!"
+        echo "Application URL: http://${SERVER}:8080"
+      """
+    }
+    
+    failure {
+      sh """
+        echo "❌ DEPLOYMENT FAILED!"
+        echo "Check logs above for details"
+      """
     }
   }
 }
