@@ -6,21 +6,36 @@ services:
     container_name: birthday_app
     command: python app.py
     restart: unless-stopped
-    env_file:
-      - .env
+    environment:
+      - TELEGRAM_TOKEN=${TELEGRAM_TOKEN}
+      - TELEGRAM_CHAT_ID=${TELEGRAM_CHAT_ID}
+      - BIRTHDAY_API_KEY=${BIRTHDAY_API_KEY}
+      - SECRET_KEY=${SECRET_KEY}
     volumes:
       - ./data:/app/data
+      - ./templates:/app/templates
     ports:
-      - "5000:5000"
+      - "0.0.0.0:8080:5000"  # ← Внешний порт 8080, внутренний 5000
+    networks:
+      - birthday_net
 
   bot:
     build: .
     container_name: birthday_bot
     command: python bot.py
     restart: unless-stopped
-    env_file:
-      - .env
+    environment:
+      - TELEGRAM_TOKEN=${TELEGRAM_TOKEN}
+      - TELEGRAM_CHAT_ID=${TELEGRAM_CHAT_ID}
+      - BIRTHDAY_API_KEY=${BIRTHDAY_API_KEY}
+      - FLASK_BASE_URL=http://web:5000  # ← Оставляем внутренний порт 5000
     volumes:
       - ./data:/app/data
     depends_on:
       - web
+    networks:
+      - birthday_net
+
+networks:
+  birthday_net:
+    driver: bridge

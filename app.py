@@ -11,10 +11,10 @@ import random
 import requests
 
 app = Flask(__name__)
-app.secret_key = "CHANGE_ME_TO_SOMETHING_RANDOM"  # чтобы сессии работали стабильно
+app.secret_key = app.secret_key = os.getenv("SECRET_KEY", "CHANGE_ME_TO_SOMETHING_RANDOM")  # чтобы сессии работали стабильно
 
-DB_NAME = "employees.db"
-NOTIFICATION_HISTORY_FILE = "notification_history.json"
+DB_NAME = "data/employees.db"
+NOTIFICATION_HISTORY_FILE = "data/notification_history.json"
 
 # ================= TELEGRAM (встроенный) =================
 TELEGRAM_TOKEN = "8357883858:AAEt_Csdcft7Obzv85J15F3WaYsXiZJ-FfQ"
