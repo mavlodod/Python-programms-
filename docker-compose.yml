@@ -12,10 +12,10 @@ services:
       - BIRTHDAY_API_KEY=${BIRTHDAY_API_KEY}
       - SECRET_KEY=${SECRET_KEY}
     volumes:
-      - ./data:/app/data
+      - birthday_data:/app/data
       - ./templates:/app/templates
     ports:
-      - "0.0.0.0:8080:5000"  # ← Внешний порт 8080, внутренний 5000
+      - "0.0.0.0:8080:5000"
     networks:
       - birthday_net
 
@@ -28,9 +28,9 @@ services:
       - TELEGRAM_TOKEN=${TELEGRAM_TOKEN}
       - TELEGRAM_CHAT_ID=${TELEGRAM_CHAT_ID}
       - BIRTHDAY_API_KEY=${BIRTHDAY_API_KEY}
-      - FLASK_BASE_URL=http://web:5000  # ← Оставляем внутренний порт 5000
+      - FLASK_BASE_URL=http://web:5000
     volumes:
-      - ./data:/app/data
+      - birthday_data:/app/data
     depends_on:
       - web
     networks:
@@ -39,3 +39,6 @@ services:
 networks:
   birthday_net:
     driver: bridge
+
+volumes:
+  birthday_data:
