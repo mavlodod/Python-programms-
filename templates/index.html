@@ -199,7 +199,6 @@
 <body>
 <div class="container-fluid py-4">
 
-    <!-- Шапка -->
     <div class="dashboard-header">
         <div class="row align-items-center">
             <div class="col-md-6">
@@ -233,7 +232,6 @@
         </div>
     </div>
 
-    <!-- Flash сообщения -->
     {% with messages = get_flashed_messages(with_categories=true) %}
         {% if messages %}
             <div class="row">
@@ -250,36 +248,50 @@
         {% endif %}
     {% endwith %}
 
-    <!-- Статистика -->
     <div class="row mb-4">
-        <div class="col-md-4">
+        <div class="col-md-3">
             <div class="stats-card total">
                 <div class="stats-number">{{ employees|length }}</div>
                 <div class="stats-label">Всего сотрудников</div>
                 <i class="bi bi-people-fill" style="font-size: 2rem; opacity: 0.7;"></i>
             </div>
         </div>
-        <div class="col-md-4">
+        <div class="col-md-3">
             <div class="stats-card today">
                 <div class="stats-number">{{ birthdays_today|length }}</div>
                 <div class="stats-label">Дни рождения сегодня</div>
                 <i class="bi bi-gift-fill" style="font-size: 2rem; opacity: 0.7;"></i>
             </div>
         </div>
-        <div class="col-md-4">
+        <div class="col-md-3">
             <div class="stats-card tomorrow">
                 <div class="stats-number">{{ birthdays_tomorrow|length }}</div>
                 <div class="stats-label">Дни рождения завтра</div>
                 <i class="bi bi-calendar-heart-fill" style="font-size: 2rem; opacity: 0.7;"></i>
             </div>
         </div>
+        <div class="col-md-3">
+            <div class="stats-card total">
+                <div class="stats-number">{{ birthdays_next7_count }}</div>
+                <div class="stats-label">Дни рождения за 7 дней</div>
+                <i class="bi bi-calendar-week-fill" style="font-size: 2rem; opacity: 0.7;"></i>
+            </div>
+        </div>
+    </div>
+
+    <div class="row mb-4">
+        <div class="col-md-12">
+            <div class="stats-card tomorrow">
+                <div class="stats-number">{{ departments_count }}</div>
+                <div class="stats-label">Всего отделов</div>
+                <i class="bi bi-diagram-3-fill" style="font-size: 2rem; opacity: 0.7;"></i>
+            </div>
+        </div>
     </div>
 
     <div class="row">
-        <!-- Левая колонка -->
         <div class="col-lg-4">
 
-            <!-- Форма добавления -->
             <div class="card card-custom">
                 <div class="card-header bg-primary text-white">
                     <h5 class="mb-0" id="formTitle">
@@ -333,7 +345,6 @@
                 </div>
             </div>
 
-            <!-- Панель уведомлений -->
             <div class="notification-controls">
                 <h6><i class="bi bi-bell"></i> Управление уведомлениями</h6>
                 <div class="btn-group w-100 mt-2" role="group">
@@ -343,10 +354,37 @@
                     <button type="button" class="btn btn-outline-success" onclick="sendTestNotification()">
                         <i class="bi bi-bell"></i> Тест
                     </button>
+                    <button type="button" class="btn btn-outline-warning" onclick="showUpcomingBirthdays()">
+                        <i class="bi bi-calendar-event"></i> Ближайшие
+                    </button>
                 </div>
             </div>
 
-            <!-- Ближайшие -->
+            <div class="card card-custom">
+                <div class="card-header bg-dark text-white">
+                    <h5 class="mb-0"><i class="bi bi-clock-history"></i> Последние действия</h5>
+                </div>
+                <div class="card-body">
+                    {% if recent_actions %}
+                        <ul class="list-group list-group-flush">
+                            {% for a in recent_actions %}
+                                <li class="list-group-item px-0">
+                                    <div class="d-flex justify-content-between">
+                                        <div>
+                                            <strong>{{ a.username or 'system' }}</strong> —
+                                            {{ a.details or a.action }}
+                                        </div>
+                                        <small class="text-muted">{{ a.created_at }}</small>
+                                    </div>
+                                </li>
+                            {% endfor %}
+                        </ul>
+                    {% else %}
+                        <div class="text-muted">История пока пуста</div>
+                    {% endif %}
+                </div>
+            </div>
+
             {% if birthdays_today or birthdays_tomorrow %}
             <div class="card card-custom">
                 <div class="card-header bg-warning text-dark">
@@ -385,13 +423,12 @@
             {% endif %}
         </div>
 
-        <!-- Правая колонка -->
         <div class="col-lg-8">
 
             <div class="card card-custom mb-3">
                 <div class="card-body">
                     <div class="row align-items-center">
-                        <div class="col-md-6">
+                        <div class="col-md-4">
                             <div class="input-group position-relative">
                                 <span class="input-group-text search-icon">
                                     <i class="bi bi-search"></i>
@@ -400,7 +437,15 @@
                                        placeholder="Поиск по имени...">
                             </div>
                         </div>
-                        <div class="col-md-6 text-end">
+                        <div class="col-md-3">
+                            <select id="monthFilter" class="form-select">
+                                <option value="">Все месяцы</option>
+                                {% for m in month_options %}
+                                    <option value="{{ '%02d'|format(m.value) }}">{{ m.label }}</option>
+                                {% endfor %}
+                            </select>
+                        </div>
+                        <div class="col-md-5 text-end">
                             <button class="btn btn-primary me-2" onclick="toggleEmployeeList()">
                                 <i class="bi bi-list"></i>
                                 <span id="toggleText">Скрыть список</span>
@@ -413,7 +458,6 @@
                 </div>
             </div>
 
-            <!-- Список сотрудников (Шапка = кнопки отделов) -->
             <div class="card card-custom" id="employeeListCard">
                 <div class="card-header bg-secondary text-white">
                     <div class="d-flex flex-wrap align-items-center gap-2">
@@ -446,6 +490,7 @@
                                 <th>Сотрудник</th>
                                 <th>Дата рождения</th>
                                 <th>Возраст</th>
+                                <th>До дня рождения</th>
                                 <th>Отдел</th>
                                 <th class="text-center">Действия</th>
                             </tr>
@@ -494,6 +539,11 @@
                                         <span class="age-badge">{{ age }} {{ get_age_suffix(age) }}</span>
                                     </td>
                                     <td>
+                                        <span class="badge bg-info text-dark">
+                                            {{ format_days_until(emp.days_until_birthday) }}
+                                        </span>
+                                    </td>
+                                    <td>
                                         <span class="badge bg-light text-dark">
                                             {{ emp.department if emp.department else "—" }}
                                         </span>
@@ -505,7 +555,12 @@
                                         <button class="btn btn-sm btn-delete" onclick="deleteEmployee({{ emp.id }})" title="Удалить">
                                             <i class="bi bi-trash"></i>
                                         </button>
-                                        <button class="btn btn-sm btn-info" onclick="viewEmployee({{ emp.id }}, '{{ emp.name }}', '{{ emp.dob }}', '{{ emp.department|default("") }}')" title="Просмотр">
+                                        <form method="POST" action="{{ url_for('congrat_employee', employee_id=emp.id) }}" style="display:inline;">
+                                            <button class="btn btn-sm btn-success" title="Поздравить" onclick="return confirm('Отправить поздравление сотруднику {{ emp.name }}?')">
+                                                <i class="bi bi-gift"></i>
+                                            </button>
+                                        </form>
+                                        <button class="btn btn-sm btn-info" onclick='viewEmployee({{ emp.id }}, {{ emp.name|tojson }}, {{ emp.dob|tojson }}, {{ emp.department|default("")|tojson }})' title="Просмотр">
                                             <i class="bi bi-eye"></i>
                                         </button>
                                     </td>
@@ -534,7 +589,6 @@
     </div>
 </div>
 
-<!-- Модалка -->
 <div class="modal fade" id="viewEmployeeModal" tabindex="-1">
     <div class="modal-dialog">
         <div class="modal-content">
@@ -551,12 +605,12 @@
     </div>
 </div>
 
-<!-- JS -->
 <script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.2/dist/js/bootstrap.bundle.min.js"></script>
 <script src="https://cdn.jsdelivr.net/npm/axios/dist/axios.min.js"></script>
 
 <script>
 let editingEmployeeId = null;
+let currentDepartmentFilter = "ALL";
 
 function getAgeSuffix(age) {
     if (11 <= age % 100 && age % 100 <= 19) return "лет";
@@ -577,13 +631,46 @@ function toggleEmployeeList() {
     }
 }
 
-document.getElementById('searchInput').addEventListener('input', function(e) {
-    const searchTerm = e.target.value.toLowerCase();
-    document.querySelectorAll('#employeeTableBody tr').forEach(row => {
-        const name = row.querySelector('td:nth-child(3) strong').textContent.toLowerCase();
-        row.style.display = name.includes(searchTerm) ? '' : 'none';
+function getRowDepartment(row) {
+    const td = row.querySelector('td:nth-child(7)');
+    if (!td) return "";
+    const txt = td.innerText.trim();
+    return (txt === "—" || txt === "") ? "Без отдела" : txt;
+}
+
+function applyFilters() {
+    const searchTerm = (document.getElementById('searchInput')?.value || "").toLowerCase();
+    const monthValue = document.getElementById('monthFilter')?.value || "";
+
+    const rows = Array.from(document.querySelectorAll('#employeeTableBody tr'));
+    let visible = 0;
+
+    rows.forEach(row => {
+        const name = row.querySelector('td:nth-child(3) strong')?.textContent.toLowerCase() || "";
+        const dobText = row.querySelector('td:nth-child(4) small')?.textContent || "";
+        const rowMonth = dobText.split('-')[1] || "";
+        const rowDept = getRowDepartment(row);
+
+        const matchSearch = name.includes(searchTerm);
+        const matchMonth = !monthValue || rowMonth === monthValue;
+        const matchDept = (currentDepartmentFilter === "ALL") ? true : rowDept === currentDepartmentFilter;
+
+        const show = matchSearch && matchMonth && matchDept;
+        row.style.display = show ? "" : "none";
+        if (show) visible++;
     });
-});
+
+    const label = document.getElementById('currentFilterLabel');
+    if (label) {
+        let text = currentDepartmentFilter === "ALL" ? "Все сотрудники" : `Отдел: ${currentDepartmentFilter}`;
+        if (monthValue) text += ` | Месяц: ${monthValue}`;
+        text += ` (показано ${visible})`;
+        label.textContent = text;
+    }
+}
+
+document.getElementById('searchInput').addEventListener('input', applyFilters);
+document.getElementById('monthFilter').addEventListener('change', applyFilters);
 
 document.getElementById('selectAll').addEventListener('change', function(e) {
     document.querySelectorAll('.employee-checkbox').forEach(cb => {
@@ -600,7 +687,6 @@ document.querySelectorAll('.employee-checkbox').forEach(cb => {
     });
 });
 
-/* === Редактирование === */
 function editEmployee(id) {
     editingEmployeeId = id;
     axios.get(`/get_employee/${id}`)
@@ -646,7 +732,6 @@ function resetForm() {
     document.getElementById('cancelBtn').style.display = 'none';
 }
 
-/* === Удаление === */
 function deleteEmployee(id) {
     if (!confirm('Удалить сотрудника?')) return;
     const fd = new FormData();
@@ -666,7 +751,6 @@ function deleteSelected() {
         .then(r => r.ok ? window.location.reload() : alert('Ошибка при удалении'));
 }
 
-/* === Просмотр === */
 function calculateDaysToNextBirthday(birthDate) {
     const today = new Date();
     const next = new Date(today.getFullYear(), birthDate.getMonth(), birthDate.getDate());
@@ -689,7 +773,8 @@ function getNextBirthdayDate(birthDate) {
 }
 
 function viewEmployee(id, name, dob, dept) {
-    const birthDate = new Date(dob);
+    const [y, m, d] = dob.split('-').map(Number);
+    const birthDate = new Date(y, m - 1, d);
     const today = new Date();
     let age = today.getFullYear() - birthDate.getFullYear();
     const thisYear = new Date(today.getFullYear(), birthDate.getMonth(), birthDate.getDate());
@@ -751,7 +836,6 @@ function viewEmployee(id, name, dob, dept) {
     new bootstrap.Modal(document.getElementById('viewEmployeeModal')).show();
 }
 
-/* === Telegram test === */
 function sendTestNotification() {
     fetch('/send_test_notification')
         .then(r => r.json())
@@ -768,15 +852,6 @@ function showAlert(message, type) {
     alertDiv.innerHTML = `${message}<button type="button" class="btn-close" data-bs-dismiss="alert"></button>`;
     document.querySelector('.container-fluid').insertBefore(alertDiv, document.querySelector('.dashboard-header').nextSibling);
     setTimeout(() => alertDiv.remove(), 5000);
-}
-
-/* === Кнопки отделов + фильтр === */
-function getRowDepartment(row) {
-    // Важно: отдел в 6-й колонке (см. таблицу: чекбокс, #, сотрудник, дата, возраст, отдел, действия)
-    const td = row.querySelector('td:nth-child(6)');
-    if (!td) return "";
-    const txt = td.innerText.trim();
-    return (txt === "—" || txt === "") ? "Без отдела" : txt;
 }
 
 function buildDepartmentButtons() {
@@ -823,34 +898,56 @@ function setActiveDeptButton(dept) {
 }
 
 function filterByDepartment(dept) {
+    currentDepartmentFilter = dept;
+    setActiveDeptButton(dept);
+    applyFilters();
+}
+
+function showUpcomingBirthdays() {
+    document.getElementById('searchInput').value = "";
+    document.getElementById('monthFilter').value = "";
+    currentDepartmentFilter = "ALL";
+    setActiveDeptButton("ALL");
+
     const rows = Array.from(document.querySelectorAll('#employeeTableBody tr'));
     let visible = 0;
 
-    rows.forEach(r => {
-        const rowDept = getRowDepartment(r);
-        const show = (dept === "ALL") ? true : (rowDept === dept);
-        r.style.display = show ? "" : "none";
+    rows.forEach(row => {
+        const badge = row.querySelector('td:nth-child(6) .badge');
+        if (!badge) return;
+
+        const text = badge.textContent.trim();
+        let show = false;
+
+        if (text === "Сегодня" || text === "Завтра") {
+            show = true;
+        } else {
+            const match = text.match(/^(\d+)/);
+            if (match) {
+                const days = parseInt(match[1], 10);
+                show = days <= 7;
+            }
+        }
+
+        row.style.display = show ? "" : "none";
         if (show) visible++;
     });
 
     const label = document.getElementById('currentFilterLabel');
-    if (label) label.textContent = (dept === "ALL") ? "Все сотрудники" : `Отдел: ${dept} (показано ${visible})`;
-
-    setActiveDeptButton(dept);
+    if (label) label.textContent = `Ближайшие дни рождения (показано ${visible})`;
 }
 
 document.addEventListener('DOMContentLoaded', function() {
     buildDepartmentButtons();
     filterByDepartment("ALL");
 
-    // Клик по строке таблицы (кроме чекбокса и кнопок)
     document.querySelectorAll('.employee-row').forEach(row => {
         row.addEventListener('click', function(e) {
             if (!e.target.closest('input[type="checkbox"]') && !e.target.closest('.action-buttons')) {
                 const id = this.getAttribute('data-id');
                 const name = this.querySelector('td:nth-child(3) strong').textContent;
                 const dob = this.querySelector('td:nth-child(4) small').textContent;
-                const dept = this.querySelector('td:nth-child(6)').innerText.trim();
+                const dept = this.querySelector('td:nth-child(7)').innerText.trim();
                 viewEmployee(id, name, dob, dept === "—" ? "" : dept);
             }
         });
